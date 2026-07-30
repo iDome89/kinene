@@ -207,108 +207,140 @@ const inputClass =
             Nessuna foto. La pagina pubblica mostra un messaggio di cortesia finché non ne carichi una.
           </p>
         ) : (
-          <ul class="mt-6 flex list-none flex-col gap-4 p-0">
-            {images.map((image) => (
-              <li class="flex flex-col gap-4 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-4 sm:flex-row">
-                <img
-                  src={`/media/${mediaFileName(image.slug, 400)}`}
-                  srcset={srcSetFor(image.slug, image.width)}
-                  sizes="12rem"
-                  alt={image.alt}
-                  width="192"
-                  height="144"
-                  loading="lazy"
-                  decoding="async"
-                  class="w-full shrink-0 rounded-lg object-cover sm:w-48"
-                  style="aspect-ratio: 4 / 3"
-                />
-
-                <form method="POST" class="min-w-0 flex-1">
-                  <input type="hidden" name="action" value="update" />
-                  <input type="hidden" name="id" value={image.id} />
-
-                  <div class="grid gap-3 sm:grid-cols-2">
-                    <div class="sm:col-span-2">
-                      <label class="block text-xs font-medium text-muted" for={`alt-${image.id}`}>
-                        Descrizione
-                      </label>
-                      <input
-                        id={`alt-${image.id}`}
-                        class={inputClass}
-                        type="text"
-                        name="alt"
-                        value={image.alt}
-                        maxlength="160"
-                      />
-                    </div>
-                    <div class="sm:col-span-2">
-                      <label class="block text-xs font-medium text-muted" for={`caption-${image.id}`}>
-                        Didascalia
-                      </label>
-                      <input
-                        id={`caption-${image.id}`}
-                        class={inputClass}
-                        type="text"
-                        name="caption"
-                        value={image.caption ?? ''}
-                        maxlength="200"
-                      />
-                    </div>
-                    <div>
-                      <label class="block text-xs font-medium text-muted" for={`category-${image.id}`}>
-                        Sezione
-                      </label>
-                      <select id={`category-${image.id}`} class={inputClass} name="category">
-                        {galleryCategories.map((category) => (
-                          <option value={category.id} selected={category.id === image.category}>
-                            {category.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label class="block text-xs font-medium text-muted" for={`position-${image.id}`}>
-                        Ordine
-                      </label>
-                      <input
-                        id={`position-${image.id}`}
-                        class={inputClass}
-                        type="number"
-                        name="position"
-                        value={image.position}
-                        min="0"
-                      />
-                    </div>
-                  </div>
-
-                  <div class="mt-3 flex flex-wrap items-center gap-2">
-                    <button
-                      type="submit"
-                      class="min-h-11 rounded-full bg-primary px-4 text-sm font-medium text-on-primary transition-colors hover:bg-primary-hover"
-                    >
-                      Salva
-                    </button>
-                    <span class="text-xs tabular-nums text-muted">
-                      {image.width}×{image.height}
+          <div class="mt-6 flex flex-col gap-4">
+            {countByCategory
+              .filter((category) => category.count > 0)
+              .map((category, index) => (
+                <details open={index === 0} class="group rounded-[var(--radius-card)] border border-edge bg-surface-raised">
+                  <summary class="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden">
+                    <span class="font-sans font-semibold">
+                      {category.label}
+                      <span class="ml-2 rounded-full bg-surface-tint px-2.5 py-0.5 text-xs font-medium tabular-nums text-muted">
+                        {category.count}
+                      </span>
                     </span>
-                  </div>
-                </form>
+                    <svg
+                      width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                      class="shrink-0 text-muted transition-transform duration-200 group-open:rotate-180"
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </summary>
 
-                <form method="POST" class="shrink-0">
-                  <input type="hidden" name="action" value="delete" />
-                  <input type="hidden" name="id" value={image.id} />
-                  <button
-                    type="submit"
-                    class="min-h-11 rounded-full border border-danger/40 px-4 text-sm font-medium text-danger transition-colors hover:bg-danger-surface"
-                  >
-                    Elimina
-                  </button>
-                </form>
-              </li>
-            ))}
-          </ul>
+                  <ul class="m-0 grid list-none grid-cols-2 gap-4 border-t border-edge p-5 sm:grid-cols-3 lg:grid-cols-4">
+                    {images
+                      .filter((image) => image.category === category.id)
+                      .map((image) => (
+                        <li class="gallery-tile overflow-hidden rounded-lg border border-edge bg-surface">
+                          <img
+                            src={`/media/${mediaFileName(image.slug, 400)}`}
+                            alt={image.alt}
+                            width="200"
+                            height="150"
+                            loading="lazy"
+                            decoding="async"
+                            class="gallery-thumb w-full object-cover"
+                            style="aspect-ratio: 4 / 3"
+                          />
+
+                          <details class="gallery-editor min-w-0 border-t border-edge">
+                            <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs [&::-webkit-details-marker]:hidden">
+                              <span class="truncate text-muted" title={image.alt}>{image.alt}</span>
+                              <span class="shrink-0 font-medium text-accent">Modifica</span>
+                            </summary>
+
+                            <div class="border-t border-edge p-4">
+                              <form method="POST" class="grid gap-3 sm:grid-cols-2">
+                                <input type="hidden" name="action" value="update" />
+                                <input type="hidden" name="id" value={image.id} />
+
+                                <div class="sm:col-span-2">
+                                  <label class="block text-xs font-medium text-muted" for={`alt-${image.id}`}>
+                                    Descrizione
+                                  </label>
+                                  <input id={`alt-${image.id}`} class={inputClass} type="text" name="alt" value={image.alt} maxlength="160" />
+                                </div>
+
+                                <div class="sm:col-span-2">
+                                  <label class="block text-xs font-medium text-muted" for={`caption-${image.id}`}>
+                                    Didascalia
+                                  </label>
+                                  <input id={`caption-${image.id}`} class={inputClass} type="text" name="caption" value={image.caption ?? ''} maxlength="200" />
+                                </div>
+
+                                <div>
+                                  <label class="block text-xs font-medium text-muted" for={`category-${image.id}`}>Sezione</label>
+                                  <select id={`category-${image.id}`} class={inputClass} name="category">
+                                    {galleryCategories.map((option) => (
+                                      <option value={option.id} selected={option.id === image.category}>
+                                        {option.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <label class="block text-xs font-medium text-muted" for={`position-${image.id}`}>Ordine</label>
+                                  <input id={`position-${image.id}`} class={inputClass} type="number" name="position" value={image.position} min="0" />
+                                </div>
+
+                                <div class="flex flex-wrap items-center gap-2 sm:col-span-2">
+                                  <button
+                                    type="submit"
+                                    class="min-h-11 rounded-full bg-primary px-5 text-sm font-medium text-on-primary transition-colors hover:bg-primary-hover"
+                                  >
+                                    Salva
+                                  </button>
+                                  <span class="text-xs tabular-nums text-muted">{image.width}×{image.height}</span>
+                                </div>
+                              </form>
+
+                              <form method="POST" class="mt-3 border-t border-edge pt-3">
+                                <input type="hidden" name="action" value="delete" />
+                                <input type="hidden" name="id" value={image.id} />
+                                <button
+                                  type="submit"
+                                  class="min-h-11 rounded-full border border-danger/40 px-5 text-sm font-medium text-danger transition-colors hover:bg-danger-surface"
+                                >
+                                  Elimina
+                                </button>
+                              </form>
+                            </div>
+                          </details>
+                        </li>
+                      ))}
+                  </ul>
+                </details>
+              ))}
+          </div>
         )
       }
     </section>
   </div>
 </Admin>
+
+<style>
+  /* A tile with its editor open takes the whole row, so the form has room to breathe. */
+  .gallery-tile:has(.gallery-editor[open]) {
+    grid-column: 1 / -1;
+  }
+
+  @media (min-width: 640px) {
+    .gallery-tile:has(.gallery-editor[open]) {
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .gallery-tile:has(.gallery-editor[open]) .gallery-thumb {
+      width: 14rem;
+      flex-shrink: 0;
+    }
+
+    .gallery-tile:has(.gallery-editor[open]) .gallery-editor {
+      flex: 1 1 auto;
+      border-top: 0;
+      border-left: 1px solid var(--t-border);
+    }
+  }
+</style>

@@ -1,0 +1,118 @@
+---
+/*
+  Native <dialog> rather than a library: showModal() gives us the focus trap,
+  Esc-to-close, background inerting and focus restore for free. The only script
+  is wiring arrows and the counter.
+*/
+---
+
+<dialog
+  id="lightbox"
+  aria-label="Galleria a schermo intero"
+  class="m-auto max-h-[100dvh] max-w-[100vw] border-0 bg-transparent p-0 backdrop:bg-brand-950/85 backdrop:backdrop-blur-sm"
+>
+  <div class="relative flex h-[100dvh] w-screen flex-col items-center justify-center p-4 sm:p-8">
+    <button
+      type="button"
+      data-lb-close
+      class="absolute right-4 top-4 z-10 flex h-12 w-12 items-center justify-center rounded-full bg-surface-raised text-body shadow-lg transition-colors hover:bg-surface-tint"
+      aria-label="Chiudi la galleria"
+    >
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+        <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+      </svg>
+    </button>
+
+    <button
+      type="button"
+      data-lb-prev
+      class="absolute left-2 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-surface-raised/90 text-body shadow-lg transition-colors hover:bg-surface-tint sm:left-6"
+      aria-label="Foto precedente"
+    >
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m15 18-6-6 6-6" />
+      </svg>
+    </button>
+
+    <button
+      type="button"
+      data-lb-next
+      class="absolute right-2 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-surface-raised/90 text-body shadow-lg transition-colors hover:bg-surface-tint sm:right-6"
+      aria-label="Foto successiva"
+    >
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m9 18 6-6-6-6" />
+      </svg>
+    </button>
+
+    <img
+      data-lb-image
+      src=""
+      alt=""
+      class="max-h-[78dvh] w-auto max-w-full rounded-[var(--radius-card)] object-contain shadow-2xl"
+    />
+
+    <div class="mt-4 max-w-2xl text-center">
+      <p data-lb-caption class="m-0 text-sm text-white/90"></p>
+      <p data-lb-counter aria-live="polite" class="m-0 mt-1 text-xs tabular-nums text-white/60"></p>
+    </div>
+  </div>
+</dialog>
+
+<script>
+  const dialog = document.getElementById('lightbox') as HTMLDialogElement | null;
+  if (dialog) {
+    const image = dialog.querySelector<HTMLImageElement>('[data-lb-image]')!;
+    const caption = dialog.querySelector<HTMLElement>('[data-lb-caption]')!;
+    const counter = dialog.querySelector<HTMLElement>('[data-lb-counter]')!;
+    const prev = dialog.querySelector<HTMLButtonElement>('[data-lb-prev]')!;
+    const next = dialog.querySelector<HTMLButtonElement>('[data-lb-next]')!;
+
+    const triggers = [...document.querySelectorAll<HTMLButtonElement>('[data-lb-open]')];
+    let current = 0;
+
+    const show = (index: number) => {
+      current = (index + triggers.length) % triggers.length;
+      const trigger = triggers[current]!;
+
+      image.src = trigger.dataset.lbFull ?? '';
+      image.srcset = trigger.dataset.lbSrcset ?? '';
+      image.sizes = '90vw';
+      image.alt = trigger.dataset.lbAlt ?? '';
+      caption.textContent = trigger.dataset.lbCaption ?? '';
+      counter.textContent = `${current + 1} di ${triggers.length}`;
+
+      const single = triggers.length < 2;
+      prev.hidden = single;
+      next.hidden = single;
+    };
+
+    triggers.forEach((trigger, index) => {
+      trigger.addEventListener('click', () => {
+        show(index);
+        dialog.showModal();
+      });
+    });
+
+    prev.addEventListener('click', () => show(current - 1));
+    next.addEventListener('click', () => show(current + 1));
+
+    dialog.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft') { event.preventDefault(); show(current - 1); }
+      if (event.key === 'ArrowRight') { event.preventDefault(); show(current + 1); }
+    });
+
+    /* Clicking the backdrop closes; clicking the photo itself must not. */
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+    dialog.querySelector('[data-lb-close]')!.addEventListener('click', () => dialog.close());
+
+    let touchStart = 0;
+    dialog.addEventListener('touchstart', (event) => { touchStart = event.changedTouches[0]!.clientX; }, { passive: true });
+    dialog.addEventListener('touchend', (event) => {
+      const delta = event.changedTouches[0]!.clientX - touchStart;
+      if (Math.abs(delta) > 60) show(current + (delta < 0 ? 1 : -1));
+    }, { passive: true });
+  }
+</script>

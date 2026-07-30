@@ -8,6 +8,7 @@ import { galleryCategories } from '@/config/business';
 import { listGallery } from '@/db/queries';
 import { largestWidth, mediaFileName, srcSetFor } from '@/lib/media';
 import { whatsappLink } from '@/lib/links';
+import Lightbox from '@/components/Lightbox.astro';
 
 export const prerender = false;
 
@@ -67,18 +68,31 @@ const grouped = galleryCategories
           <ul class="mt-8 grid list-none grid-cols-1 gap-5 p-0 sm:grid-cols-2 lg:grid-cols-3">
             {group.images.map((image, position) => (
               <li class="overflow-hidden rounded-[var(--radius-card)] border border-edge bg-surface-raised">
-                <img
-                  src={`/media/${mediaFileName(image.slug, largestWidth(image.width))}`}
-                  srcset={srcSetFor(image.slug, image.width)}
-                  sizes="(min-width: 1024px) 24rem, (min-width: 640px) 45vw, 92vw"
-                  width={image.width}
-                  height={image.height}
-                  alt={image.alt}
-                  loading={index === 0 && position < 3 ? 'eager' : 'lazy'}
-                  decoding="async"
-                  class="h-full w-full object-cover"
-                  style="aspect-ratio: 4 / 3"
-                />
+                <button
+                  type="button"
+                  data-lb-open
+                  data-lb-full={`/media/${mediaFileName(image.slug, largestWidth(image.width))}`}
+                  data-lb-srcset={srcSetFor(image.slug, image.width)}
+                  data-lb-alt={image.alt}
+                  data-lb-caption={image.caption ?? ''}
+                  class="group block w-full cursor-zoom-in border-0 bg-transparent p-0 text-left"
+                  aria-label={`Ingrandisci: ${image.alt}`}
+                >
+                  <span class="relative block overflow-hidden">
+                    <img
+                      src={`/media/${mediaFileName(image.slug, largestWidth(image.width))}`}
+                      srcset={srcSetFor(image.slug, image.width)}
+                      sizes="(min-width: 1024px) 24rem, (min-width: 640px) 45vw, 92vw"
+                      width={image.width}
+                      height={image.height}
+                      alt={image.alt}
+                      loading={index === 0 && position < 3 ? 'eager' : 'lazy'}
+                      decoding="async"
+                      class="h-full w-full object-cover transition-transform duration-300 ease-[var(--ease-out-soft)] group-hover:scale-[1.03]"
+                      style="aspect-ratio: 4 / 3"
+                    />
+                  </span>
+                </button>
                 {image.caption && (
                   <p class="m-0 border-t border-edge px-4 py-3 text-sm text-muted">{image.caption}</p>
                 )}
@@ -108,4 +122,5 @@ const grouped = galleryCategories
       </Section>
     )
   }
+  {images.length > 0 && <Lightbox />}
 </Base>

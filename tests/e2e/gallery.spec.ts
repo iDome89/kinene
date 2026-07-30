@@ -115,6 +115,9 @@ test.describe('gallery — admin', () => {
       .locator('li')
       .filter({ has: page.getByAltText('Foto temporanea da eliminare') })
       .first();
+
+    /* The editor is collapsed until its summary is clicked. */
+    await card.getByText('Modifica').click();
     await card.locator('[name="caption"]').fill('Didascalia aggiornata');
     await card.getByRole('button', { name: 'Salva' }).click();
     await expect(page.getByRole('status')).toContainText('Foto aggiornata');
@@ -123,11 +126,66 @@ test.describe('gallery — admin', () => {
       .locator('li')
       .filter({ has: page.getByAltText('Foto temporanea da eliminare') })
       .first();
+    await updated.getByText('Modifica').click();
     await expect(updated.locator('[name="caption"]')).toHaveValue('Didascalia aggiornata');
 
     await updated.getByRole('button', { name: 'Elimina' }).click();
     await expect(page.getByRole('status')).toContainText('Foto eliminata');
     await expect(page.getByAltText('Foto temporanea da eliminare')).toHaveCount(0);
+  });
+});
+
+test.describe('lightbox', () => {
+  test('opens a photo, navigates, and restores focus on close', async ({ page }) => {
+    await login(page);
+    await page.goto('/admin/galleria');
+
+    for (const name of ['prima', 'seconda']) {
+      await page.locator('#photos').setInputFiles({
+        name: `${name}.png`,
+        mimeType: 'image/png',
+        buffer: PNG_1PX,
+      });
+      await page.locator('#alt').fill(`Foto ${name} del lightbox`);
+      await page.getByRole('button', { name: 'Carica' }).click();
+      await expect(page.getByRole('status')).toContainText('foto caricat');
+    }
+
+    await page.goto('/galleria');
+
+    const dialog = page.locator('#lightbox');
+    await expect(dialog).toBeHidden();
+
+    const trigger = page.locator('[data-lb-open]').first();
+    await trigger.click();
+    await expect(dialog).toBeVisible();
+
+    const counter = dialog.locator('[data-lb-counter]');
+    const initial = await counter.textContent();
+    expect(initial).toMatch(/^1 di \d+$/);
+
+    await page.keyboard.press('ArrowRight');
+    await expect(counter).not.toHaveText(initial!);
+
+    await page.keyboard.press('ArrowLeft');
+    await expect(counter).toHaveText(initial!);
+
+    /* Native <dialog> gives Esc-to-close and focus restore for free. */
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+
+  test('every thumbnail is a labelled button, not a bare image', async ({ page }) => {
+    await page.goto('/galleria');
+    const triggers = page.locator('[data-lb-open]');
+    const count = await triggers.count();
+    expect(count).toBeGreaterThan(0);
+
+    for (let index = 0; index < count; index += 1) {
+      const label = await triggers.nth(index).getAttribute('aria-label');
+      expect(label).toMatch(/^Ingrandisci: .+/);
+    }
   });
 });
 

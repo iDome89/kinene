@@ -11,6 +11,20 @@ export default defineConfig({
   integrations: [preact({ compat: false }), sitemap()],
   vite: { plugins: [tailwindcss()] },
   image: { responsiveStyles: true },
+  /*
+    Render terminates TLS and proxies to the container, so the server sees
+    http://0.0.0.0:4321 while the browser sends the public origin. Without this
+    allowlist Astro's CSRF check rejects every POST with 403. Listing the domains
+    keeps checkOrigin enabled rather than disabling it; an X-Forwarded-Host that
+    does not match is ignored and the real host is used.
+  */
+  security: {
+    allowedDomains: [
+      { hostname: '**.onrender.com', protocol: 'https' },
+      { hostname: 'kinene.it', protocol: 'https' },
+      { hostname: '**.kinene.it', protocol: 'https' },
+    ],
+  },
   env: {
     schema: {
       SESSION_SECRET: envField.string({ context: 'server', access: 'secret', optional: true }),

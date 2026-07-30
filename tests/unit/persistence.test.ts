@@ -73,3 +73,13 @@ describe('formatBytes', () => {
     expect(formatBytes(5 * 1024 * 1024)).toBe('5.0 MB');
   });
 });
+
+describe('an empty file is not a survivor', () => {
+  it('treats a zero-byte database as newly created, because that is what it is', () => {
+    const line = storageVerdict(
+      { url: 'file:/data/kinene.db', path: '/data/kinene.db', existedAtBoot: false, bytesAtBoot: 0 },
+      { prenotazioni: 0, recensioni: 0, foto: 0 },
+    );
+    expect(line).toContain('ATTENZIONE');
+  });
+});

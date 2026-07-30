@@ -27,6 +27,8 @@ COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/drizzle ./drizzle
 COPY --from=build --chown=node:node /app/scripts ./scripts
 COPY --from=build --chown=node:node /app/src/db ./src/db
+COPY --from=build --chown=node:node /app/src/lib ./src/lib
+COPY --from=build --chown=node:node /app/src/config ./src/config
 COPY --from=build --chown=node:node /app/package.json ./package.json
 COPY --chown=node:node docker-entrypoint.sh ./docker-entrypoint.sh
 

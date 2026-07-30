@@ -1,0 +1,278 @@
+@import 'tailwindcss';
+
+@source '../**/*.{astro,tsx,ts,mdx,html}';
+
+@import '@fontsource-variable/fraunces/index.css';
+@import '@fontsource-variable/inter/index.css';
+
+/*
+  Palette sampled from the Kinene logo:
+  olive rgb(66,80,47) #42502F · sage rgb(136,144,123) #88907B · ink rgb(9,12,5) · paper rgb(254,254,253)
+  Every foreground/background pair used in the UI is verified by scripts/verify-contrast.ts.
+*/
+@theme {
+  --color-brand-950: #121709;
+  --color-brand-900: #1c2214;
+  --color-brand-800: #26301c;
+  --color-brand-700: #344022;
+  --color-brand-600: #42502f;
+  --color-brand-500: #566544;
+  --color-brand-400: #6f7d5c;
+  --color-brand-300: #88907b;
+  --color-brand-200: #b0b7a4;
+  --color-brand-100: #d8dcd0;
+  --color-brand-50: #edefe8;
+
+  --color-bone: #f7f5ef;
+  --color-paper: #fefefd;
+
+  --color-accent-800: #7a4f26;
+  --color-accent-700: #8f5f2e;
+  --color-accent-600: #a9743c;
+  --color-accent-100: #f2e4d3;
+
+  --color-signal-danger: #9b2c2c;
+  --color-signal-danger-soft: #f7e4e4;
+  --color-signal-ok: #2f6b45;
+
+  --font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --spacing-section: 5.5rem;
+  --radius-card: 0.875rem;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root {
+  color-scheme: light;
+
+  --t-surface: var(--color-bone);
+  --t-surface-raised: var(--color-paper);
+  --t-surface-sunken: var(--color-brand-50);
+  --t-surface-inverse: var(--color-brand-800);
+  --t-surface-tint: var(--color-brand-100);
+
+  --t-text: var(--color-brand-900);
+  --t-text-muted: var(--color-brand-500);
+  --t-text-inverse: #ffffff;
+  --t-heading: var(--color-brand-800);
+
+  --t-border: var(--color-brand-200);
+  --t-border-strong: var(--color-brand-400);
+
+  --t-primary: var(--color-brand-600);
+  --t-primary-hover: var(--color-brand-700);
+  --t-on-primary: #ffffff;
+
+  --t-accent: var(--color-accent-700);
+  --t-accent-hover: var(--color-accent-800);
+  --t-on-accent: #ffffff;
+
+  --t-danger: var(--color-signal-danger);
+  --t-danger-surface: var(--color-signal-danger-soft);
+  --t-ok: var(--color-signal-ok);
+
+  --t-ring: var(--color-accent-700);
+}
+
+@theme inline {
+  --color-surface: var(--t-surface);
+  --color-surface-raised: var(--t-surface-raised);
+  --color-surface-sunken: var(--t-surface-sunken);
+  --color-surface-inverse: var(--t-surface-inverse);
+  --color-surface-tint: var(--t-surface-tint);
+
+  --color-body: var(--t-text);
+  --color-muted: var(--t-text-muted);
+  --color-inverse: var(--t-text-inverse);
+  --color-heading: var(--t-heading);
+
+  --color-edge: var(--t-border);
+  --color-edge-strong: var(--t-border-strong);
+
+  --color-primary: var(--t-primary);
+  --color-primary-hover: var(--t-primary-hover);
+  --color-on-primary: var(--t-on-primary);
+
+  --color-accent: var(--t-accent);
+  --color-accent-hover: var(--t-accent-hover);
+  --color-on-accent: var(--t-on-accent);
+
+  --color-danger: var(--t-danger);
+  --color-danger-surface: var(--t-danger-surface);
+  --color-ok: var(--t-ok);
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--t-surface);
+    color: var(--t-text);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.65;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-variation-settings: 'SOFT' 20, 'WONK' 1;
+    color: var(--t-heading);
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--t-ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: var(--t-primary);
+    color: var(--t-on-primary);
+  }
+
+  img,
+  svg,
+  video {
+    display: block;
+    max-width: 100%;
+  }
+
+  a {
+    color: inherit;
+  }
+
+  button,
+  [role='button'],
+  label[for],
+  summary {
+    cursor: pointer;
+  }
+
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+@layer components {
+  .wrap {
+    width: 100%;
+    max-width: 76rem;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+  }
+
+  @media (min-width: 768px) {
+    .wrap {
+      padding-inline: 2rem;
+    }
+  }
+
+  .prose-kinene {
+    max-width: 68ch;
+  }
+
+  .prose-kinene h2 {
+    margin-top: 2.5rem;
+    margin-bottom: 0.75rem;
+    font-size: 1.6rem;
+  }
+
+  .prose-kinene h3 {
+    margin-top: 1.75rem;
+    margin-bottom: 0.5rem;
+    font-size: 1.2rem;
+  }
+
+  .prose-kinene p,
+  .prose-kinene ul,
+  .prose-kinene ol {
+    margin-block: 0.85rem;
+  }
+
+  .prose-kinene ul {
+    list-style: none;
+    padding-left: 0;
+  }
+
+  .prose-kinene ul > li {
+    position: relative;
+    padding-left: 1.4rem;
+    margin-block: 0.4rem;
+  }
+
+  .prose-kinene ul > li::before {
+    content: '';
+    position: absolute;
+    left: 0.25rem;
+    top: 0.72em;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 999px;
+    background: var(--t-primary);
+  }
+
+  .prose-kinene a {
+    color: var(--t-accent);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  /* Callouts sit on tinted surfaces, so links need the darker accent to clear 4.5:1. */
+  .callout-body a {
+    color: var(--color-accent-800);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+  }
+}

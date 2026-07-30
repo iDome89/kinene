@@ -1,0 +1,227 @@
+---
+import Base from '@/layouts/Base.astro';
+import PageHero from '@/components/PageHero.astro';
+import Section from '@/components/Section.astro';
+import Callout from '@/components/Callout.astro';
+import Button from '@/components/Button.astro';
+import Icon from '@/components/Icon.astro';
+import { business, policy, serviceList } from '@/config/business';
+import { formatEuro } from '@/lib/pricing';
+
+const description =
+  'Regolamento interno e condizioni del servizio Kinene: requisiti di ammissione, orari di check-in e check-out, alimentazione, tariffe, disdette ed emergenze mediche.';
+
+const breadcrumb = [
+  { name: 'Home', href: '/' },
+  { name: 'Regolamento', href: '/regolamento' },
+];
+
+const requirements = [
+  {
+    title: 'Microchip',
+    body: 'Obbligatorio e regolarmente registrato all’anagrafe canina.',
+  },
+  {
+    title: 'Libretto sanitario',
+    body: 'Da consegnare all’arrivo, aggiornato e in regola.',
+  },
+  {
+    title: 'Assicurazione obbligatoria',
+    body: 'Il cane deve essere coperto da una polizza di assicurazione di responsabilità civile verso terzi in corso di validità. Il proprietario è tenuto a fornire i dettagli della polizza all’atto dell’iscrizione.',
+  },
+  {
+    title: 'Vaccinazioni',
+    body: `Obbligatorie quelle di base: ${policy.requiredVaccinations.join(', ')}.`,
+  },
+  {
+    title: 'Parassitari',
+    body: 'Trattamento antipulci, zecche e filaria attivo e certificato.',
+  },
+  {
+    title: 'Salute generale',
+    body: 'Assenza di malattie contagiose, ferite aperte o punti di sutura.',
+  },
+  {
+    title: 'Test d’ingresso',
+    body: 'È obbligatorio un primo incontro conoscitivo gratuito prima del soggiorno.',
+  },
+  {
+    title: 'Femmine in calore',
+    body: 'Non sono ammesse femmine in calore o in prossimità dell’inizio del calore alla data del soggiorno.',
+  },
+  {
+    title: 'Età minima',
+    body: 'Non sono ammessi cani al di sotto di un anno di età.',
+  },
+  {
+    title: 'Comportamento',
+    body: 'Non si accettano in alcun modo cani che manifestano problemi di aggressività, intolleranza o forte reattività verso altri animali, sia cani che altre specie, e persone.',
+  },
+  {
+    title: 'Comandi base obbligatori',
+    body: `Per garantire l’incolumità degli ospiti e una corretta gestione, il cane deve aver appreso e saper eseguire i comandi educativi di base: ${policy.requiredCommands.join(', ')}. Cani privi di questo controllo minimo non potranno essere ammessi.`,
+  },
+];
+---
+
+<Base title="Regolamento interno" description={description} breadcrumb={breadcrumb}>
+  <PageHero
+    eyebrow="Condizioni del servizio"
+    title="Regolamento interno"
+    lead="Il presente regolamento ha lo scopo di garantire la massima sicurezza, il benessere psicofisico di tutti gli ospiti a quattro zampe e la serenità dei loro proprietari. L’accesso alla struttura implica l’accettazione totale delle seguenti norme."
+    breadcrumb={breadcrumb}
+  >
+    <div class="no-print mt-8 flex flex-wrap gap-3">
+      <Button href="/prenota" variant="accent">
+        Richiedi una prenotazione
+        <Icon name="arrow-right" size={17} />
+      </Button>
+      <Button href="/test-di-ingresso" variant="outline">Prenota il test d’ingresso</Button>
+    </div>
+  </PageHero>
+
+  <Section labelledby="requisiti">
+    <div class="prose-kinene">
+      <h2 id="requisiti" class="!mt-0">Requisiti di ammissione</h2>
+      <p class="text-muted">
+        Sono condizioni vincolanti. Un cane che non le soddisfa non può essere accettato, senza eccezioni.
+      </p>
+    </div>
+
+    <ul class="mt-8 grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-2">
+      {
+        requirements.map((item) => (
+          <li class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
+            <h3 class="m-0 font-sans text-[0.95rem] font-semibold">{item.title}</h3>
+            <p class="m-0 mt-2 text-sm leading-relaxed text-muted">{item.body}</p>
+          </li>
+        ))
+      }
+    </ul>
+
+    <div class="mt-8 grid gap-4 md:grid-cols-2">
+      <Callout tone="warning" title="Allontanamento immediato">
+        Qualora il cane manifesti comportamenti aggressivi, lesivi o gravemente incontrollabili durante il
+        soggiorno, la struttura si riserva il diritto di allontanare immediatamente l’animale. Il proprietario
+        o un suo delegato reperibile è tenuto a ritirare il cane entro
+        {' '}{policy.forcedRemovalCollectionHours} ore dalla comunicazione.
+      </Callout>
+      <Callout tone="warning" title="Penali e costi di emergenza">
+        In caso di allontanamento forzato per motivi di sicurezza, la quota dell’intero soggiorno già versata
+        non sarà rimborsata. Al proprietario verrà inoltre addebitata una penale fissa di
+        {' '}{formatEuro(policy.forcedRemovalPenaltyCents)} per la gestione dell’emergenza e l’isolamento del
+        cane, oltre al totale risarcimento di eventuali danni a cose, persone o altri animali.
+      </Callout>
+    </div>
+  </Section>
+
+  <Section tone="sunken" labelledby="orari">
+    <div class="prose-kinene">
+      <h2 id="orari" class="!mt-0">Orari di check-in e check-out</h2>
+    </div>
+
+    <div class="mt-8 overflow-x-auto">
+      <table class="w-full min-w-[36rem] border-collapse text-left">
+        <caption class="sr-only">Orari di consegna e ritiro per ciascun servizio</caption>
+        <thead>
+          <tr class="border-b border-edge-strong">
+            <th scope="col" class="py-3 pr-6 font-sans text-xs font-semibold uppercase tracking-[0.16em] text-muted">Servizio</th>
+            <th scope="col" class="py-3 pr-6 font-sans text-xs font-semibold uppercase tracking-[0.16em] text-muted">Consegna</th>
+            <th scope="col" class="py-3 font-sans text-xs font-semibold uppercase tracking-[0.16em] text-muted">Ritiro</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            serviceList.map((service) => (
+              <tr class="border-b border-edge">
+                <th scope="row" class="py-4 pr-6 font-sans font-semibold">{service.name}</th>
+                <td class="py-4 pr-6 tabular-nums text-muted">
+                  {service.checkInFrom}—{service.checkInTo}
+                </td>
+                <td class="py-4 tabular-nums text-muted">
+                  {service.checkOutFrom}—{service.checkOutTo}
+                  {service.checkOutNextDay && <span class="block text-xs">il giorno successivo</span>}
+                </td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="prose-kinene mt-8">
+      <ul>
+        <li>
+          <strong>Pensione lungo termine:</strong> non superiamo le due settimane. Check-in entro le ore 12:00
+          del giorno di arrivo.
+        </li>
+        <li>
+          <strong>Ritardi:</strong> oltre l’orario di chiusura o di ritiro concordato verrà applicata in
+          automatico la tariffa per la notte o il giorno successivo.
+        </li>
+        <li>
+          <strong>Flessibilità:</strong> eventuali deroghe agli orari vanno concordate con almeno
+          {' '}{policy.scheduleChangeNoticeHours} ore di anticipo e non possono superare le 24 ore dal giorno di
+          ritiro stabilito.
+        </li>
+      </ul>
+    </div>
+  </Section>
+
+  <Section labelledby="alimentazione">
+    <div class="grid gap-12 lg:grid-cols-2">
+      <div class="prose-kinene">
+        <h2 id="alimentazione" class="!mt-0">Alimentazione, corredo e oggetti personali</h2>
+        <ul>
+          <li><strong>Cibo:</strong> il proprietario deve fornire il cibo abituale con eventuale misurino.</li>
+          <li>
+            <strong>Allergie:</strong> eventuali intolleranze o diete speciali vanno comunicate per iscritto al
+            momento dell’iscrizione.
+          </li>
+          <li>
+            <strong>Farmaci:</strong> si somministrano terapie mediche solo dietro presentazione di prescrizione
+            veterinaria scritta.
+          </li>
+          <li>
+            <strong>Effetti personali:</strong> è consigliato portare una coperta o un gioco con l’odore di casa.
+          </li>
+          <li>
+            <strong>Responsabilità:</strong> la struttura non risponde di eventuali danni o distruzione di giochi
+            e cucce portati da casa.
+          </li>
+        </ul>
+      </div>
+
+      <div class="prose-kinene">
+        <h2 id="tariffe" class="!mt-0">Tariffe, prenotazioni e cancellazioni</h2>
+        <ul>
+          <li><strong>Pagamento:</strong> va saldato il giorno del check-in.</li>
+          <li>
+            <strong>Disdetta:</strong> gratuita fino a {policy.standardCancellationDays} giorni prima del
+            soggiorno, penale del {policy.lateCancellationFeeRatio * 100}% oltre tale termine.
+          </li>
+          <li>
+            <strong>Alta stagione:</strong> per i periodi festivi (Natale, agosto e Pasqua) la disdetta richiede
+            un preavviso di {policy.highSeasonCancellationDays} giorni.
+          </li>
+        </ul>
+
+        <h2 id="emergenze">Emergenze mediche e gestione imprevisti</h2>
+        <p>
+          In caso di malessere, la struttura contatterà immediatamente il proprietario e il veterinario di
+          fiducia indicato. In assenza del veterinario del cliente, il cane sarà trasportato presso
+          {' '}{policy.emergencyClinic}.
+        </p>
+        <p>
+          Tutte le spese veterinarie d’urgenza sono a totale carico del proprietario del cane.
+        </p>
+      </div>
+    </div>
+
+    <Callout tone="info" title="Accettazione" class="mt-12">
+      L’invio di una richiesta di prenotazione tramite questo sito e l’accesso alla struttura implicano
+      l’accettazione integrale del presente regolamento. Per qualsiasi chiarimento contatta
+      {' '}{business.contact.personName} al {business.contact.phoneDisplay}.
+    </Callout>
+  </Section>
+</Base>

@@ -1,0 +1,181 @@
+---
+import Base from '@/layouts/Base.astro';
+import PageHero from '@/components/PageHero.astro';
+import Section from '@/components/Section.astro';
+import SectionHeading from '@/components/SectionHeading.astro';
+import Button from '@/components/Button.astro';
+import Icon from '@/components/Icon.astro';
+import Callout from '@/components/Callout.astro';
+import { business, openingHours, serviceList } from '@/config/business';
+import { fullAddress, mailLink, mapsLink, telLink, whatsappLink } from '@/lib/links';
+
+const description =
+  'Contatti Kinene: Via Giuseppe Garibaldi 138, Guiglia (MO). Telefono, WhatsApp, Instagram e orari di apertura. Visite alla struttura su appuntamento.';
+
+const breadcrumb = [
+  { name: 'Home', href: '/' },
+  { name: 'Contatti', href: '/contatti' },
+];
+
+const email = mailLink('Richiesta informazioni');
+const { latitude, longitude } = business.address;
+const mapEmbed = `https://www.openstreetmap.org/export/embed.html?bbox=${longitude - 0.012}%2C${latitude - 0.007}%2C${longitude + 0.012}%2C${latitude + 0.007}&layer=mapnik&marker=${latitude}%2C${longitude}`;
+---
+
+<Base title="Contatti e orari" description={description} breadcrumb={breadcrumb}>
+  <PageHero
+    eyebrow="Contatti"
+    title="Parliamone"
+    lead="Per prenotare, per il test d’ingresso o anche solo per capire se siamo la struttura giusta per il tuo cane. WhatsApp è il canale più veloce."
+    breadcrumb={breadcrumb}
+  />
+
+  <Section labelledby="canali">
+    <div class="grid gap-12 lg:grid-cols-[1fr_1fr]">
+      <div>
+        <SectionHeading id="canali" eyebrow="Come raggiungerci" title="Recapiti" />
+
+        <ul class="mt-8 flex list-none flex-col gap-px overflow-hidden rounded-[var(--radius-card)] border border-edge bg-edge p-0">
+          <li class="bg-surface-raised">
+            <a href={whatsappLink('Ciao Kinene, vorrei informazioni sui vostri servizi.')} target="_blank" rel="noopener noreferrer" class="flex items-center gap-4 p-5 no-underline transition-colors hover:bg-surface-tint">
+              <Icon name="whatsapp" size={22} class="shrink-0 text-primary" />
+              <span class="min-w-0 flex-1">
+                <span class="block font-medium">WhatsApp</span>
+                <span class="block text-sm text-muted">Risposta più rapida, anche fuori orario</span>
+              </span>
+              <Icon name="arrow-right" size={17} class="shrink-0 text-muted" />
+            </a>
+          </li>
+
+          <li class="bg-surface-raised">
+            <a href={telLink()} class="flex items-center gap-4 p-5 no-underline transition-colors hover:bg-surface-tint">
+              <Icon name="phone" size={22} class="shrink-0 text-primary" />
+              <span class="min-w-0 flex-1">
+                <span class="block font-medium tabular-nums">{business.contact.phoneDisplay}</span>
+                <span class="block text-sm text-muted">{business.contact.personName}</span>
+              </span>
+              <Icon name="arrow-right" size={17} class="shrink-0 text-muted" />
+            </a>
+          </li>
+
+          {
+            email && (
+              <li class="bg-surface-raised">
+                <a href={email} class="flex items-center gap-4 p-5 no-underline transition-colors hover:bg-surface-tint">
+                  <Icon name="mail" size={22} class="shrink-0 text-primary" />
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate font-medium">{business.contact.email}</span>
+                    <span class="block text-sm text-muted">Per documenti e comunicazioni scritte</span>
+                  </span>
+                  <Icon name="arrow-right" size={17} class="shrink-0 text-muted" />
+                </a>
+              </li>
+            )
+          }
+
+          <li class="bg-surface-raised">
+            <a href={business.contact.instagramUrl} target="_blank" rel="noopener noreferrer" class="flex items-center gap-4 p-5 no-underline transition-colors hover:bg-surface-tint">
+              <Icon name="instagram" size={22} class="shrink-0 text-primary" />
+              <span class="min-w-0 flex-1">
+                <span class="block font-medium">@{business.contact.instagram}</span>
+                <span class="block text-sm text-muted">Foto della struttura e dei nostri cani</span>
+              </span>
+              <Icon name="arrow-right" size={17} class="shrink-0 text-muted" />
+            </a>
+          </li>
+
+          <li class="bg-surface-raised">
+            <a href={mapsLink()} target="_blank" rel="noopener noreferrer" class="flex items-center gap-4 p-5 no-underline transition-colors hover:bg-surface-tint">
+              <Icon name="pin" size={22} class="shrink-0 text-primary" />
+              <span class="min-w-0 flex-1">
+                <span class="block font-medium">{business.address.street}</span>
+                <span class="block text-sm text-muted">
+                  {business.address.postalCode} {business.address.locality} ({business.address.province})
+                </span>
+              </span>
+              <Icon name="arrow-right" size={17} class="shrink-0 text-muted" />
+            </a>
+          </li>
+        </ul>
+
+        <div class="mt-6 flex flex-wrap gap-3">
+          <Button href="/prenota" variant="accent" size="lg">
+            Richiedi una prenotazione
+            <Icon name="arrow-right" size={18} />
+          </Button>
+          <Button href="/test-di-ingresso" variant="outline" size="lg">Test d’ingresso gratuito</Button>
+        </div>
+      </div>
+
+      <div>
+        <SectionHeading eyebrow="Quando" title="Orari di apertura" level={2} />
+
+        <div class="mt-8 overflow-hidden rounded-[var(--radius-card)] border border-edge bg-surface-raised">
+          <div class="flex items-start justify-between gap-6 border-b border-edge p-6">
+            <div>
+              <p class="m-0 font-medium">{openingHours.weekdays.label}</p>
+              <p class="m-0 mt-1 text-sm text-muted">Apertura al pubblico</p>
+            </div>
+            <div class="shrink-0 text-right">
+              {
+                openingHours.weekdays.slots.map((slot) => (
+                  <p class="m-0 font-display text-lg font-semibold tabular-nums">
+                    {slot.from}—{slot.to}
+                  </p>
+                ))
+              }
+            </div>
+          </div>
+
+          <div class="flex items-start justify-between gap-6 p-6">
+            <div>
+              <p class="m-0 font-medium">{openingHours.weekend.label}</p>
+              <p class="m-0 mt-1 text-sm text-muted">Chiamaci per fissare</p>
+            </div>
+            <p class="m-0 shrink-0 text-right font-display text-lg font-semibold text-accent">
+              Su appuntamento
+            </p>
+          </div>
+        </div>
+
+        <Callout tone="info" title="Consegne e ritiri hanno orari propri" class="mt-6">
+          Gli orari qui sopra sono quelli di apertura al pubblico. Consegna e ritiro del cane seguono le
+          finestre previste per ciascun servizio:
+          <ul class="mt-3 flex list-none flex-col gap-1 p-0">
+            {
+              serviceList.map((service) => (
+                <li class="flex flex-wrap items-baseline justify-between gap-x-4 tabular-nums">
+                  <span class="text-body">{service.name}</span>
+                  <span>
+                    {service.checkInFrom}—{service.checkInTo} / {service.checkOutFrom}—{service.checkOutTo}
+                  </span>
+                </li>
+              ))
+            }
+          </ul>
+          <a href="/prezzi" class="mt-3 inline-block">Vedi il dettaglio degli orari</a>
+        </Callout>
+      </div>
+    </div>
+  </Section>
+
+  <Section tone="sunken" labelledby="mappa">
+    <SectionHeading id="mappa" eyebrow="Dove siamo" title="Guiglia, Appennino modenese" lead={fullAddress} />
+
+    <div class="mt-10 overflow-hidden rounded-[var(--radius-card)] border border-edge">
+      <iframe
+        src={mapEmbed}
+        title="Mappa della sede Kinene a Guiglia"
+        width="100%"
+        height="440"
+        loading="lazy"
+        referrerpolicy="no-referrer-when-downgrade"
+        style="border:0; display:block;"></iframe>
+    </div>
+
+    <p class="mt-4 text-sm text-muted">
+      <a href={mapsLink()} target="_blank" rel="noopener noreferrer" class="text-accent underline underline-offset-2">Apri in Google Maps</a>
+      per il percorso da casa tua.
+    </p>
+  </Section>
+</Base>

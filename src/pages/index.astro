@@ -1,0 +1,390 @@
+---
+import Base from '@/layouts/Base.astro';
+import Section from '@/components/Section.astro';
+import SectionHeading from '@/components/SectionHeading.astro';
+import Button from '@/components/Button.astro';
+import Icon from '@/components/Icon.astro';
+import Figure from '@/components/Figure.astro';
+import { business, policy, serviceList } from '@/config/business';
+import { formatEuro } from '@/lib/pricing';
+import { fullAddress, mapsLink, telLink, whatsappLink } from '@/lib/links';
+
+const description =
+  'Pensione, asilo diurno e notturno per cani a Guiglia, sull’Appennino modenese. Addestratrice cinofila, ampi spazi verdi, socializzazione controllata. Allevamento di Cane Corso.';
+
+const strengths = [
+  {
+    icon: 'graduation' as const,
+    title: 'Addestratrice cinofila',
+    body: 'Il tuo cane è seguito da chi gestisce quotidianamente grandi e piccole taglie, non da personale improvvisato.',
+  },
+  {
+    icon: 'leaf' as const,
+    title: 'Ampi spazi verdi',
+    body: 'Aree recintate e sicure per il gioco e il movimento, immerse nel verde dell’Appennino.',
+  },
+  {
+    icon: 'users' as const,
+    title: 'Socializzazione controllata',
+    body: 'Ogni interazione è monitorata e i gruppi sono composti per carattere, taglia ed energia.',
+  },
+  {
+    icon: 'heart' as const,
+    title: 'Routine personalizzate',
+    body: 'Rispettiamo i tempi di pappa, nanna e gioco di ogni ospite. Il cibo di casa, gli orari di casa.',
+  },
+];
+
+const steps = [
+  {
+    title: 'Test d’ingresso gratuito',
+    body: 'Un primo incontro conoscitivo, senza impegno e senza costi. Valutiamo il carattere del cane e ci conosciamo.',
+    href: '/test-di-ingresso',
+    linkLabel: 'Come funziona',
+  },
+  {
+    title: 'Scegli le date',
+    body: 'Verifica la disponibilità reale sul calendario e invia la richiesta. Ti rispondiamo con la conferma.',
+    href: '/prenota',
+    linkLabel: 'Verifica disponibilità',
+  },
+  {
+    title: 'Prepara i documenti',
+    body: 'Libretto sanitario, microchip registrato, polizza RC e antiparassitario attivo. Tutto il necessario in una lista.',
+    href: '/regolamento',
+    linkLabel: 'Leggi il regolamento',
+  },
+  {
+    title: 'Consegna e ritiro',
+    body: 'Orari chiari per ogni servizio. Il saldo si effettua il giorno del check-in, senza anticipi online.',
+    href: '/prezzi',
+    linkLabel: 'Vedi orari e prezzi',
+  },
+];
+
+const faqs = [
+  {
+    q: 'Devo per forza fare il test d’ingresso?',
+    a: 'Sì, ed è gratuito. È un primo incontro conoscitivo che serve a valutare il carattere del cane e la sua compatibilità con il gruppo. Senza questo passaggio non possiamo accettare il soggiorno: è la garanzia di sicurezza per il tuo cane e per tutti gli altri ospiti.',
+  },
+  {
+    q: 'Quali documenti servono?',
+    a: `Microchip registrato all’anagrafe canina, libretto sanitario aggiornato, polizza di responsabilità civile verso terzi in corso di validità, vaccinazioni di base (${policy.requiredVaccinations.join(' e ')}) e trattamento antiparassitario attivo e certificato.`,
+  },
+  {
+    q: 'Accettate cuccioli?',
+    a: 'No. Non accettiamo cani al di sotto di un anno di età alla data di consegna. Un cucciolo ha esigenze di gestione e socializzazione che una pensione non può soddisfare correttamente.',
+  },
+  {
+    q: 'Accettate femmine in calore?',
+    a: 'No, non sono ammesse femmine in calore o in prossimità dell’inizio del calore alla data del soggiorno. Se il calore arriva a ridosso delle date, contattaci: riprogrammiamo senza penali.',
+  },
+  {
+    q: 'Il cane deve conoscere dei comandi?',
+    a: `Sì. Per l’incolumità di tutti gli ospiti il cane deve saper eseguire i comandi educativi di base: ${policy.requiredCommands.join(', ')}. Cani privi di questo controllo minimo non possono essere ammessi.`,
+  },
+  {
+    q: 'Cosa devo portare?',
+    a: 'Il cibo abituale con l’eventuale misurino, e se vuoi una coperta o un gioco con l’odore di casa. Eventuali intolleranze o diete speciali vanno comunicate per iscritto al momento dell’iscrizione. I farmaci si somministrano solo dietro prescrizione veterinaria scritta.',
+  },
+  {
+    q: 'Cosa succede se il cane sta male?',
+    a: `Contattiamo immediatamente il proprietario e il veterinario di fiducia indicato. In assenza di un veterinario indicato, il cane viene trasportato presso ${policy.emergencyClinic}. Le spese veterinarie d’urgenza sono a carico del proprietario.`,
+  },
+  {
+    q: 'Come funzionano le disdette?',
+    a: `La disdetta è gratuita fino a ${policy.standardCancellationDays} giorni prima del soggiorno, oltre tale termine si applica una penale del ${policy.lateCancellationFeeRatio * 100}%. Per i periodi festivi (Natale, agosto e Pasqua) il preavviso richiesto è di ${policy.highSeasonCancellationDays} giorni.`,
+  },
+];
+
+const cheapest = serviceList.reduce((min, service) => (service.priceCents < min.priceCents ? service : min));
+---
+
+<Base title={business.tradeName} description={description}>
+  <Fragment slot="head">
+    <script
+      type="application/ld+json"
+      is:inline
+      set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: faqs.map((faq) => ({
+          '@type': 'Question',
+          name: faq.q,
+          acceptedAnswer: { '@type': 'Answer', text: faq.a },
+        })),
+      })}
+    />
+  </Fragment>
+
+  <section class="relative overflow-hidden border-b border-edge bg-surface-sunken">
+    <div class="wrap grid items-center gap-12 py-16 md:py-24 lg:grid-cols-[1.05fr_0.95fr]">
+      <div>
+        <p class="mb-5 inline-flex items-center gap-2 rounded-full border border-edge bg-surface-raised px-4 py-1.5 text-xs font-medium tracking-wide text-muted">
+          <Icon name="pin" size={14} class="text-primary" />
+          Guiglia, Appennino modenese
+        </p>
+
+        <h1 class="text-[clamp(2.2rem,1.4rem+3.4vw,3.9rem)] font-semibold">
+          Il tuo cane in mani <span class="text-primary">competenti</span>
+        </h1>
+
+        <p class="mt-6 max-w-xl text-[1.12rem] leading-relaxed text-muted">
+          Pensione, asilo diurno e notturno gestiti da un’addestratrice cinofila, in un allevamento di
+          Cane Corso con ampi spazi verdi. Gruppi selezionati per carattere, routine rispettate, nessuna
+          improvvisazione.
+        </p>
+
+        <div class="mt-9 flex flex-wrap gap-3">
+          <Button href="/prenota" variant="accent" size="lg">
+            Verifica disponibilità
+            <Icon name="arrow-right" size={18} />
+          </Button>
+          <Button
+            href={whatsappLink('Ciao Kinene, vorrei informazioni sulla pensione per il mio cane.')}
+            variant="outline"
+            size="lg"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Icon name="whatsapp" size={18} />
+            Scrivici su WhatsApp
+          </Button>
+        </div>
+
+        <dl class="mt-11 grid max-w-lg grid-cols-3 gap-6 border-t border-edge pt-7">
+          <div>
+            <dt class="text-xs uppercase tracking-[0.16em] text-muted">Da</dt>
+            <dd class="m-0 mt-1 font-display text-2xl font-semibold text-body">
+              {formatEuro(cheapest.priceCents)}
+            </dd>
+            <dd class="m-0 text-xs text-muted">al {cheapest.priceUnit}</dd>
+          </div>
+          <div>
+            <dt class="text-xs uppercase tracking-[0.16em] text-muted">Test d’ingresso</dt>
+            <dd class="m-0 mt-1 font-display text-2xl font-semibold text-body">Gratuito</dd>
+            <dd class="m-0 text-xs text-muted">obbligatorio</dd>
+          </div>
+          <div>
+            <dt class="text-xs uppercase tracking-[0.16em] text-muted">Soggiorni</dt>
+            <dd class="m-0 mt-1 font-display text-2xl font-semibold text-body">1—14</dd>
+            <dd class="m-0 text-xs text-muted">notti</dd>
+          </div>
+        </dl>
+      </div>
+
+      <Figure
+        caption="Foto della struttura e degli spazi verdi"
+        icon="leaf"
+        ratio="4 / 3"
+        class="shadow-xl shadow-black/5"
+      />
+    </div>
+  </section>
+
+  <Section tone="plain" labelledby="perche">
+    <SectionHeading
+      id="perche"
+      eyebrow="Perché sceglierci"
+      title="Quattro cose che non diamo per scontate"
+      lead="La differenza tra un box e una struttura gestita da chi fa questo di mestiere."
+    />
+
+    <ul class="mt-12 grid list-none grid-cols-1 gap-6 p-0 sm:grid-cols-2 lg:grid-cols-4">
+      {
+        strengths.map((item) => (
+          <li class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
+            <span class="flex h-11 w-11 items-center justify-center rounded-full bg-surface-tint text-primary">
+              <Icon name={item.icon} size={21} />
+            </span>
+            <h3 class="mt-5 font-sans text-base font-semibold">{item.title}</h3>
+            <p class="mt-2 text-sm leading-relaxed text-muted">{item.body}</p>
+          </li>
+        ))
+      }
+    </ul>
+  </Section>
+
+  <Section tone="sunken" labelledby="servizi">
+    <SectionHeading
+      id="servizi"
+      eyebrow="Servizi"
+      title="Tre formule, orari chiari"
+      lead="Nessuna sorpresa sui tempi di consegna e ritiro. Oltre l’orario concordato scatta automaticamente la tariffa del giorno o della notte successiva."
+    />
+
+    <ul class="mt-12 grid list-none grid-cols-1 gap-6 p-0 lg:grid-cols-3">
+      {
+        serviceList.map((service) => (
+          <li class="flex flex-col rounded-[var(--radius-card)] border border-edge bg-surface-raised p-7">
+            <h3 class="font-display text-xl font-semibold">{service.name}</h3>
+            <p class="mt-3 flex-1 text-sm leading-relaxed text-muted">{service.summary}</p>
+
+            <dl class="mt-6 flex flex-col gap-2 border-t border-edge pt-5 text-sm">
+              <div class="flex items-center justify-between gap-4">
+                <dt class="text-muted">Consegna</dt>
+                <dd class="m-0 font-medium tabular-nums">
+                  {service.checkInFrom}—{service.checkInTo}
+                </dd>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <dt class="text-muted">Ritiro{service.checkOutNextDay ? ' (giorno dopo)' : ''}</dt>
+                <dd class="m-0 font-medium tabular-nums">
+                  {service.checkOutFrom}—{service.checkOutTo}
+                </dd>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <dt class="text-muted">Tariffa</dt>
+                <dd class="m-0 font-medium tabular-nums">
+                  {formatEuro(service.priceCents)} / {service.priceUnit}
+                </dd>
+              </div>
+            </dl>
+
+            <a
+              href={`/servizi/${service.id}`}
+              class="mt-6 inline-flex items-center gap-2 text-sm font-medium text-accent no-underline hover:underline"
+            >
+              Dettagli e regole
+              <Icon name="arrow-right" size={16} />
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </Section>
+
+  <Section tone="plain" labelledby="come-funziona">
+    <SectionHeading
+      id="come-funziona"
+      eyebrow="Come funziona"
+      title="Dal primo contatto al soggiorno"
+      lead="Quattro passaggi, nessuna zona grigia."
+    />
+
+    <ol class="mt-12 grid list-none grid-cols-1 gap-px overflow-hidden rounded-[var(--radius-card)] border border-edge bg-edge p-0 md:grid-cols-2 lg:grid-cols-4">
+      {
+        steps.map((step, index) => (
+          <li class="flex flex-col bg-surface-raised p-7">
+            <span class="font-display text-3xl font-semibold text-brand-400 tabular-nums">
+              {String(index + 1).padStart(2, '0')}
+            </span>
+            <h3 class="mt-4 font-sans text-base font-semibold">{step.title}</h3>
+            <p class="mt-2 flex-1 text-sm leading-relaxed text-muted">{step.body}</p>
+            <a
+              href={step.href}
+              class="mt-5 inline-flex items-center gap-2 text-sm font-medium text-accent no-underline hover:underline"
+            >
+              {step.linkLabel}
+              <Icon name="arrow-right" size={15} />
+            </a>
+          </li>
+        ))
+      }
+    </ol>
+  </Section>
+
+  <Section tone="inverse" labelledby="allevamento">
+    <div class="grid items-center gap-12 lg:grid-cols-[0.95fr_1.05fr]">
+      <Figure caption="Riproduttori e cucciolate" icon="paw" ratio="5 / 4" class="border border-white/10" />
+
+      <div>
+        <p class="mb-3 text-xs font-semibold uppercase tracking-[0.22em] opacity-70">Allevamento</p>
+        <h2 class="text-[clamp(1.75rem,1.2rem+2vw,2.6rem)] font-semibold !text-inverse">
+          Cane Corso, selezionato con criterio
+        </h2>
+        <p class="mt-5 max-w-xl leading-relaxed opacity-85">
+          Kinene nasce come allevamento di Cane Corso. La stessa attenzione che mettiamo nella selezione
+          dei nostri riproduttori la applichiamo alla gestione quotidiana degli ospiti: conoscenza della
+          razza, lettura del comportamento, gestione dei gruppi.
+        </p>
+        <div class="mt-8">
+          <Button href="/allevamento" variant="outline" size="lg" class="!border-white/35 !text-inverse hover:!bg-white/10">
+            Scopri l’allevamento
+            <Icon name="arrow-right" size={18} />
+          </Button>
+        </div>
+      </div>
+    </div>
+  </Section>
+
+  <Section tone="plain" labelledby="faq">
+    <div class="grid gap-12 lg:grid-cols-[0.85fr_1.15fr]">
+      <div>
+        <SectionHeading
+          id="faq"
+          eyebrow="Domande frequenti"
+          title="Le regole, senza giri di parole"
+          lead="Sono vincolanti e servono a tenere al sicuro tutti gli ospiti."
+        />
+        <div class="mt-8">
+          <Button href="/regolamento" variant="outline">
+            <Icon name="file" size={17} />
+            Regolamento completo
+          </Button>
+        </div>
+      </div>
+
+      <div class="divide-y divide-edge border-y border-edge">
+        {
+          faqs.map((faq) => (
+            <details class="group py-1">
+              <summary class="flex min-h-14 cursor-pointer list-none items-center justify-between gap-6 py-3 font-medium [&::-webkit-details-marker]:hidden">
+                {faq.q}
+                <Icon
+                  name="chevron-down"
+                  size={19}
+                  class="shrink-0 text-muted transition-transform duration-200 group-open:rotate-180"
+                />
+              </summary>
+              <p class="mb-4 mt-0 max-w-prose pr-8 text-sm leading-relaxed text-muted">{faq.a}</p>
+            </details>
+          ))
+        }
+      </div>
+    </div>
+  </Section>
+
+  <Section tone="sunken" labelledby="contatti-home">
+    <div class="grid items-start gap-10 lg:grid-cols-[1fr_auto]">
+      <div>
+        <SectionHeading
+          id="contatti-home"
+          eyebrow="Dove siamo"
+          title="Vieni a vedere la struttura"
+          lead="Il test d’ingresso è gratuito e serve anche a te: vedi dove dorme il tuo cane prima di lasciarlo."
+        />
+
+        <ul class="mt-8 flex list-none flex-col gap-4 p-0">
+          <li class="flex items-start gap-3">
+            <Icon name="pin" size={19} class="mt-1 shrink-0 text-primary" />
+            <a href={mapsLink()} target="_blank" rel="noopener noreferrer" class="text-body no-underline hover:underline">
+              {fullAddress}
+            </a>
+          </li>
+          <li class="flex items-start gap-3">
+            <Icon name="phone" size={19} class="mt-1 shrink-0 text-primary" />
+            <a href={telLink()} class="text-body no-underline hover:underline">{business.contact.phoneDisplay}</a>
+            <span class="text-muted">— {business.contact.personName}</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <Icon name="clock" size={19} class="mt-1 shrink-0 text-primary" />
+            <span class="text-muted">Visite su appuntamento. Eventuali deroghe agli orari vanno concordate con almeno {policy.scheduleChangeNoticeHours} ore di anticipo.</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="flex w-full flex-col gap-3 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-7 lg:w-80">
+        <p class="m-0 font-display text-lg font-semibold">Pronto a prenotare?</p>
+        <p class="m-0 text-sm leading-relaxed text-muted">
+          Controlla la disponibilità reale e invia la richiesta. Ti confermiamo noi.
+        </p>
+        <Button href="/prenota" variant="accent" class="mt-2 w-full">Verifica disponibilità</Button>
+        <Button href={telLink()} variant="outline" class="w-full">
+          <Icon name="phone" size={17} />
+          Chiama ora
+        </Button>
+      </div>
+    </div>
+  </Section>
+</Base>

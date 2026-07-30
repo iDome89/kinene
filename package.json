@@ -1,0 +1,44 @@
+{
+  "name": "kinene",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "tsx scripts/verify-contrast.ts && astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "verify": "npm run tokens:verify && npx astro check && npm test && npm run test:e2e",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --env-file-if-exists=.env scripts/migrate.ts",
+    "db:seed": "tsx --env-file-if-exists=.env scripts/seed.ts",
+    "tokens:verify": "tsx scripts/verify-contrast.ts",
+    "auth:hash": "tsx scripts/hash-password.ts"
+  },
+  "dependencies": {
+    "@astrojs/node": "^11.0.3",
+    "@astrojs/preact": "^6.0.2",
+    "@astrojs/sitemap": "^3.7.3",
+    "@libsql/client": "^0.17.4",
+    "@noble/hashes": "^2.2.0",
+    "astro": "^7.1.6",
+    "drizzle-orm": "^0.45.2",
+    "preact": "^10.29.7"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@axe-core/playwright": "^4.12.1",
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@playwright/test": "^1.62.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "drizzle-kit": "^0.31.10",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

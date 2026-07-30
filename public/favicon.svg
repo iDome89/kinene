@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <rect width="120" height="120" rx="26" fill="#42502f"/>
+  <circle cx="60" cy="57" r="43" fill="none" stroke="#fefefd" stroke-width="3.5"/>
+  <text x="60" y="73" text-anchor="middle" fill="#fefefd"
+        font-family="Georgia, 'Times New Roman', serif" font-size="52" font-weight="600">K</text>
+  <g stroke="#fefefd" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
+    <path d="M42 89h36"/>
+    <path d="m46 89 7-8 5 5 6-8 5 6 4-4"/>
+  </g>
+</svg>

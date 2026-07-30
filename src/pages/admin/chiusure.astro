@@ -1,0 +1,199 @@
+---
+import Admin from '@/layouts/Admin.astro';
+import { db } from '@/db/client';
+import { blackouts, capacityOverrides } from '@/db/schema';
+import { listBlackouts } from '@/db/queries';
+import { eq } from 'drizzle-orm';
+import { formatDay, formatDayIt, parseDay, todayInBusinessTimezone } from '@/lib/dates';
+import { business } from '@/config/business';
+
+export const prerender = false;
+
+let flash: { tone: 'ok' | 'error'; message: string } | null = null;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') ?? '');
+  const now = Date.now();
+
+  if (action === 'add-blackout') {
+    const from = parseDay(String(form.get('fromDay') ?? ''));
+    const to = parseDay(String(form.get('toDay') ?? ''));
+    const reason = String(form.get('reason') ?? '').trim();
+
+    if (from === null || to === null || to < from) {
+      flash = { tone: 'error', message: 'Intervallo non valido: controlla le date.' };
+    } else {
+      await db.insert(blackouts).values({
+        fromDay: from,
+        toDayExclusive: to + 1,
+        reason: reason || 'Chiusura',
+        createdAt: now,
+      });
+      flash = { tone: 'ok', message: `Chiusura dal ${formatDayIt(from)} al ${formatDayIt(to)} registrata.` };
+    }
+  } else if (action === 'delete-blackout') {
+    await db.delete(blackouts).where(eq(blackouts.id, Number(form.get('id'))));
+    flash = { tone: 'ok', message: 'Chiusura rimossa.' };
+  } else if (action === 'set-capacity') {
+    const day = parseDay(String(form.get('day') ?? ''));
+    const maxDogs = Number(form.get('maxDogs'));
+
+    if (day === null || !Number.isInteger(maxDogs) || maxDogs < 0 || maxDogs > 999) {
+      flash = { tone: 'error', message: 'Capienza non valida.' };
+    } else {
+      const updated = await db
+        .update(capacityOverrides)
+        .set({ maxDogs })
+        .where(eq(capacityOverrides.day, day));
+
+      if (updated.rowsAffected === 0) {
+        await db.insert(capacityOverrides).values({ day, maxDogs });
+      }
+      flash = { tone: 'ok', message: `Capienza del ${formatDayIt(day)} impostata a ${maxDogs}.` };
+    }
+  } else if (action === 'delete-capacity') {
+    await db.delete(capacityOverrides).where(eq(capacityOverrides.day, Number(form.get('day'))));
+    flash = { tone: 'ok', message: 'Eccezione di capienza rimossa.' };
+  }
+}
+
+const today = todayInBusinessTimezone();
+const closures = await listBlackouts(today);
+const overrides = await db.select().from(capacityOverrides).orderBy(capacityOverrides.day);
+const upcomingOverrides = overrides.filter((row) => row.day >= today);
+
+const inputClass =
+  'mt-1.5 block min-h-11 w-full rounded-lg border border-edge-strong bg-surface px-3.5 outline-none transition-colors focus:border-accent';
+---
+
+<Admin title="Chiusure e capienza" active="chiusure">
+  {
+    flash && (
+      <p
+        role="status"
+        class:list={[
+          'mb-8 rounded-[var(--radius-card)] border p-4 text-sm',
+          flash.tone === 'ok'
+            ? 'border-ok/35 bg-surface-tint text-ok'
+            : 'border-danger/35 bg-danger-surface text-danger',
+        ]}
+      >
+        {flash.message}
+      </p>
+    )
+  }
+
+  <div class="grid gap-10 lg:grid-cols-2">
+    <section>
+      <h1 class="font-display text-2xl font-semibold">Chiusure</h1>
+      <p class="mt-2 text-sm text-muted">
+        I giorni chiusi spariscono dal calendario pubblico e non sono selezionabili.
+      </p>
+
+      <form method="POST" class="mt-6 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
+        <input type="hidden" name="action" value="add-blackout" />
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="block text-sm font-medium" for="fromDay">Dal</label>
+            <input id="fromDay" class={inputClass} type="date" name="fromDay" required min={formatDay(today)} />
+          </div>
+          <div>
+            <label class="block text-sm font-medium" for="toDay">Al (incluso)</label>
+            <input id="toDay" class={inputClass} type="date" name="toDay" required min={formatDay(today)} />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-sm font-medium" for="reason">Motivo</label>
+            <input id="reason" class={inputClass} type="text" name="reason" placeholder="Ferie, manutenzione…" />
+          </div>
+        </div>
+        <button
+          type="submit"
+          class="mt-5 min-h-11 rounded-full bg-primary px-5 text-sm font-medium text-on-primary transition-colors hover:bg-primary-hover"
+        >
+          Aggiungi chiusura
+        </button>
+      </form>
+
+      {
+        closures.length > 0 && (
+          <ul class="mt-6 flex list-none flex-col gap-px overflow-hidden rounded-[var(--radius-card)] border border-edge bg-edge p-0">
+            {closures.map((closure) => (
+              <li class="flex items-center justify-between gap-4 bg-surface-raised p-4">
+                <div>
+                  <p class="m-0 text-sm font-medium">
+                    {formatDayIt(closure.fromDay)} — {formatDayIt(closure.toDayExclusive - 1)}
+                  </p>
+                  <p class="m-0 text-xs text-muted">{closure.reason}</p>
+                </div>
+                <form method="POST">
+                  <input type="hidden" name="action" value="delete-blackout" />
+                  <input type="hidden" name="id" value={closure.id} />
+                  <button
+                    type="submit"
+                    class="min-h-11 rounded-full border border-edge-strong px-4 text-xs transition-colors hover:bg-surface-tint"
+                  >
+                    Rimuovi
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </section>
+
+    <section>
+      <h2 class="font-display text-2xl font-semibold">Capienza</h2>
+      <p class="mt-2 text-sm text-muted">
+        Capienza predefinita: <strong class="text-body">{business.capacity.defaultMaxDogs} cani</strong>. Qui
+        imposti eccezioni per singoli giorni.
+      </p>
+
+      <form method="POST" class="mt-6 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
+        <input type="hidden" name="action" value="set-capacity" />
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="block text-sm font-medium" for="day">Giorno</label>
+            <input id="day" class={inputClass} type="date" name="day" required min={formatDay(today)} />
+          </div>
+          <div>
+            <label class="block text-sm font-medium" for="maxDogs">Cani massimi</label>
+            <input id="maxDogs" class={inputClass} type="number" name="maxDogs" required min="0" max="999" />
+          </div>
+        </div>
+        <button
+          type="submit"
+          class="mt-5 min-h-11 rounded-full bg-primary px-5 text-sm font-medium text-on-primary transition-colors hover:bg-primary-hover"
+        >
+          Imposta capienza
+        </button>
+      </form>
+
+      {
+        upcomingOverrides.length > 0 && (
+          <ul class="mt-6 flex list-none flex-col gap-px overflow-hidden rounded-[var(--radius-card)] border border-edge bg-edge p-0">
+            {upcomingOverrides.map((row) => (
+              <li class="flex items-center justify-between gap-4 bg-surface-raised p-4">
+                <p class="m-0 text-sm">
+                  <span class="font-medium">{formatDayIt(row.day)}</span>
+                  <span class="text-muted"> · max {row.maxDogs} cani</span>
+                </p>
+                <form method="POST">
+                  <input type="hidden" name="action" value="delete-capacity" />
+                  <input type="hidden" name="day" value={row.day} />
+                  <button
+                    type="submit"
+                    class="min-h-11 rounded-full border border-edge-strong px-4 text-xs transition-colors hover:bg-surface-tint"
+                  >
+                    Rimuovi
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </section>
+  </div>
+</Admin>

@@ -1,0 +1,132 @@
+---
+import Base from '@/layouts/Base.astro';
+import PageHero from '@/components/PageHero.astro';
+import Section from '@/components/Section.astro';
+import SectionHeading from '@/components/SectionHeading.astro';
+import Button from '@/components/Button.astro';
+import Icon from '@/components/Icon.astro';
+import Callout from '@/components/Callout.astro';
+import { policy } from '@/config/business';
+import { telLink, whatsappLink } from '@/lib/links';
+
+const description =
+  'Il test d’ingresso Kinene è un primo incontro conoscitivo gratuito e obbligatorio prima del primo soggiorno. Serve a valutare carattere, compatibilità e gestione del cane.';
+
+const breadcrumb = [
+  { name: 'Home', href: '/' },
+  { name: 'Test d’ingresso', href: '/test-di-ingresso' },
+];
+
+const evaluated = [
+  'Reattività verso altri cani, in avvicinamento controllato',
+  'Reazione a persone estranee e alla manipolazione',
+  'Risposta ai comandi di base: ' + policy.requiredCommands.join(', '),
+  'Capacità di staccare e riposare in un ambiente nuovo',
+  'Comportamento alla separazione dal proprietario',
+  'Gestione della risorsa cibo e dei giochi',
+];
+
+const bring = [
+  'Libretto sanitario aggiornato',
+  'Estremi della polizza RC verso terzi',
+  'Certificazione dell’antiparassitario in corso',
+  'Il guinzaglio e la pettorina che usate di solito',
+];
+---
+
+<Base title="Test d’ingresso gratuito" description={description} breadcrumb={breadcrumb}>
+  <PageHero
+    eyebrow="Obbligatorio e gratuito"
+    title="Il test d’ingresso"
+    lead="Un primo incontro conoscitivo, senza costi e senza impegno. È il passaggio che ci permette di dire sì con cognizione di causa, e a te di vedere dove dormirà il tuo cane prima di lasciarlo."
+    breadcrumb={breadcrumb}
+  >
+    <div class="mt-8 flex flex-wrap gap-3">
+      <Button
+        href={whatsappLink('Ciao Kinene, vorrei fissare il test d’ingresso gratuito per il mio cane.')}
+        variant="accent"
+        size="lg"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <Icon name="whatsapp" size={18} />
+        Fissa il test su WhatsApp
+      </Button>
+      <Button href={telLink()} variant="outline" size="lg">
+        <Icon name="phone" size={18} />
+        Chiama per fissare
+      </Button>
+    </div>
+  </PageHero>
+
+  <Section labelledby="perche">
+    <div class="grid gap-12 lg:grid-cols-2">
+      <div>
+        <SectionHeading id="perche" eyebrow="Perché è obbligatorio" title="Non è burocrazia" />
+        <div class="prose-kinene mt-6">
+          <p class="text-muted">
+            In struttura convivono cani che non si conoscono. Inserire un cane senza averlo valutato significa
+            scommettere sulla sicurezza di tutti gli altri, e non è una scommessa che facciamo.
+          </p>
+          <p class="text-muted">
+            Il test dura in genere un’ora. Non è un esame da superare: serve a capire come lavorare con il tuo
+            cane, in quale gruppo inserirlo e cosa evitare. Se il risultato è che non possiamo accettarlo, te lo
+            diciamo chiaramente e ti spieghiamo perché.
+          </p>
+        </div>
+
+        <h3 class="mt-10 font-sans text-base font-semibold">Cosa valutiamo</h3>
+        <ul class="mt-4 flex list-none flex-col gap-2.5 p-0">
+          {
+            evaluated.map((item) => (
+              <li class="flex items-start gap-3 text-sm leading-relaxed text-muted">
+                <Icon name="check" size={16} class="mt-0.5 shrink-0 text-primary" />
+                <span>{item}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <div>
+        <SectionHeading eyebrow="Come prepararsi" title="Cosa portare" level={2} />
+        <ul class="mt-6 flex list-none flex-col gap-2.5 p-0">
+          {
+            bring.map((item) => (
+              <li class="flex items-start gap-3 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-4 text-sm">
+                <Icon name="file" size={17} class="mt-0.5 shrink-0 text-primary" />
+                <span>{item}</span>
+              </li>
+            ))
+          }
+        </ul>
+
+        <Callout tone="warning" title="Non presentarti se" class="mt-8">
+          Il cane ha meno di un anno, è una femmina in calore o in prossimità del calore, presenta ferite
+          aperte, punti di sutura o sintomi di malattia contagiosa. In questi casi chiamaci prima e
+          riprogrammiamo.
+        </Callout>
+
+        <Callout tone="ok" title="Dopo il test" class="mt-4">
+          Se l’esito è positivo puoi prenotare subito: il tuo cane risulta idoneo e non dovrai ripetere il test
+          per i soggiorni successivi.
+        </Callout>
+      </div>
+    </div>
+  </Section>
+
+  <Section tone="sunken">
+    <div class="flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
+      <div>
+        <h2 class="font-display text-2xl font-semibold">Hai già fatto il test?</h2>
+        <p class="m-0 mt-2 max-w-xl text-sm leading-relaxed text-muted">
+          Allora puoi passare direttamente alla verifica delle date.
+        </p>
+      </div>
+      <Button href="/prenota" variant="accent" size="lg" class="shrink-0">
+        Verifica disponibilità
+        <Icon name="arrow-right" size={18} />
+      </Button>
+    </div>
+  </Section>
+</Base>

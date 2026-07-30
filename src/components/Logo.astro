@@ -1,0 +1,20 @@
+---
+interface Props {
+  size?: number;
+  class?: string;
+  priority?: boolean;
+}
+
+const { size = 56, class: className = '', priority = false } = Astro.props;
+---
+
+<img
+  src="/logo.svg"
+  width={size}
+  height={size * (1039 / 1009)}
+  alt="Kinene — Allevamento Cane Corso"
+  class={`shrink-0 ${className}`}
+  loading={priority ? 'eager' : 'lazy'}
+  fetchpriority={priority ? 'high' : undefined}
+  decoding="async"
+/>

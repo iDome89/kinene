@@ -1,0 +1,92 @@
+# Kinene
+
+Sito e sistema di prenotazione per **Kinene** — allevamento di Cane Corso e servizi di pensione, asilo diurno/notturno e dog sitting a Guiglia (MO).
+
+## Stack
+
+| | |
+|---|---|
+| Framework | Astro 7 (statico + SSR sulle sole rotte dinamiche) |
+| UI | Tailwind v4, Preact (una sola isola: il calendario) |
+| Database | SQLite via libSQL + Drizzle ORM |
+| Deploy | Docker su una singola macchina Render, con disco persistente |
+| Test | Vitest (unit) + Playwright & axe-core (E2E, a11y, responsive) |
+
+Le pagine di marketing sono prerenderizzate e non spediscono JavaScript. Solo `/prenota` e `/admin/*` sono server-rendered.
+
+## Sviluppo
+
+```bash
+npm install
+cp .env.example .env
+npm run auth:hash -- "la-tua-password"   # incolla i due valori in .env
+npm run db:migrate
+npm run dev
+```
+
+Il sito è su `http://localhost:4321`, la gestione su `/admin`.
+
+## Comandi
+
+| Comando | Cosa fa |
+|---|---|
+| `npm run dev` | server di sviluppo |
+| `npm run build` | verifica i contrasti del tema, poi compila |
+| `npm test` | 114 test unitari (disponibilità, regolamento, prezzi, date, auth) |
+| `npm run test:e2e` | 43 test end-to-end, accessibilità e responsive |
+| `npm run tokens:verify` | verifica WCAG AA su tutte le coppie di colore |
+| `npm run db:migrate` | applica le migrazioni |
+| `npm run db:generate` | genera una migrazione dopo aver modificato lo schema |
+| `npm run auth:hash -- "pw"` | genera `ADMIN_PASSWORD_HASH` e `SESSION_SECRET` |
+
+## Deploy su Render
+
+`render.yaml` è già pronto: servizio Docker, piano **starter** (serve un disco persistente, il piano free non lo supporta), disco da 1 GB montato su `/data`.
+
+1. Collega il repository su Render → "New Blueprint Instance"
+2. Imposta le variabili non sincronizzate:
+   - `ADMIN_PASSWORD_HASH` — da `npm run auth:hash`
+   - `NOTIFY_EMAIL` — dove ricevere le notifiche di prenotazione
+   - `SESSION_SECRET` viene generato da Render
+3. Deploy. Le migrazioni girano automaticamente all'avvio del container.
+
+Health check su `/api/health`. Il database SQLite vive su `/data/kinene.db`: fai il backup del disco.
+
+Test locale dell'immagine:
+
+```bash
+docker build -t kinene . && docker run -p 8080:4321 -e SESSION_SECRET=$(openssl rand -hex 32) -e ADMIN_PASSWORD_HASH="..." -v kinene-data:/data kinene
+```
+
+## Struttura
+
+```
+src/
+  config/business.ts     ← TUTTI i dati aziendali: prezzi, orari, capienza, contatti
+  lib/
+    dates.ts             numerazione dei giorni (giorni dall'epoch, niente fusi orari)
+    availability.ts      griglia di occupazione (Int16Array, SoA)
+    rules.ts             il regolamento come predicati puri
+    pricing.ts           preventivi in centesimi interi
+    season.ts            alta stagione, con calcolo della Pasqua
+    booking.ts           validazione della richiesta lato server
+    auth.ts              scrypt + cookie di sessione firmato HMAC
+  db/                    schema Drizzle e query
+  components/            componenti Astro + il calendario Preact
+  pages/                 rotte
+```
+
+**Tutto ciò che riguarda l'attività sta in `src/config/business.ts`.** Prezzi, orari di apertura, finestre di consegna e ritiro, capienza, penali, contatti: si cambiano lì e si propagano a tutto il sito, ai preventivi e alla validazione.
+
+## Note tecniche
+
+- **Occupazione**: `Int16Array` indicizzato per giorno, non un array di oggetti. Il riempimento è O(prenotazioni × notti), ogni interrogazione successiva è O(1) per giorno.
+- **Date**: tutto è un numero intero di giorni dall'epoch UTC. Nessun `Date` nella logica, nessun bug di fuso orario o di ora legale.
+- **Le prenotazioni sono richieste**, non conferme. Solo lo stato `confirmed` consuma capienza, quindi l'overbooking è strutturalmente impossibile.
+- **Le regole si applicano sul server.** La validazione nel browser è solo cortesia.
+- **L'hash della password usa `.` come separatore, non `$`** — `dotenv-expand` interpreta `$nome` come variabile e troncherebbe silenziosamente il valore. C'è un test che lo verifica.
+- **Nessun tracciamento**: font self-hosted, nessuna CDN, nessuna analytics. Per questo non serve il banner cookie.
+
+## Cosa manca
+
+Vedi la sezione finale della consegna: foto, P.IVA, email, affiliazione ENCI.

@@ -1,0 +1,110 @@
+---
+import Logo from './Logo.astro';
+import Icon from './Icon.astro';
+import { footerNav, fullAddress, mailLink, mapsLink, telLink, whatsappLink } from '@/lib/links';
+import { business, openingHours, weekdayHoursText } from '@/config/business';
+
+const year = new Date().getFullYear();
+const email = mailLink();
+---
+
+<footer class="mt-auto border-t border-edge bg-surface-sunken">
+  <div class="wrap grid gap-12 py-14 md:grid-cols-[1.25fr_repeat(3,1fr)]">
+    <div>
+      <Logo size={116} />
+      <p class="mt-5 max-w-xs text-sm leading-relaxed text-muted">
+        Allevamento di Cane Corso e servizi di pensione, asilo e dog sitting sull’Appennino modenese.
+      </p>
+
+      <ul class="mt-6 flex list-none flex-col gap-3 p-0 text-sm">
+        <li>
+          <a href={mapsLink()} target="_blank" rel="noopener noreferrer" class="inline-flex items-start gap-2.5 text-muted no-underline transition-colors hover:text-body">
+            <Icon name="pin" size={17} class="mt-0.5 shrink-0 text-primary" />
+            <span>{fullAddress}</span>
+          </a>
+        </li>
+        <li>
+          <a href={telLink()} class="inline-flex items-center gap-2.5 text-muted no-underline transition-colors hover:text-body">
+            <Icon name="phone" size={17} class="shrink-0 text-primary" />
+            {business.contact.phoneDisplay}
+          </a>
+        </li>
+        {
+          email && (
+            <li>
+              <a href={email} class="inline-flex items-center gap-2.5 text-muted no-underline transition-colors hover:text-body">
+                <Icon name="mail" size={17} class="shrink-0 text-primary" />
+                {business.contact.email}
+              </a>
+            </li>
+          )
+        }
+        <li>
+          <a
+            href={business.contact.instagramUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-2.5 text-muted no-underline transition-colors hover:text-body"
+          >
+            <Icon name="instagram" size={17} class="shrink-0 text-primary" />
+            @{business.contact.instagram}
+          </a>
+        </li>
+        <li class="flex items-start gap-2.5 text-muted">
+          <Icon name="clock" size={17} class="mt-0.5 shrink-0 text-primary" />
+          <span>
+            {openingHours.weekdays.label}
+            <span class="block tabular-nums">{weekdayHoursText}</span>
+            <span class="block">{openingHours.weekend.label}: {openingHours.weekend.note}</span>
+          </span>
+        </li>
+      </ul>
+    </div>
+
+    {
+      footerNav.map((group) => (
+        <nav aria-label={group.title}>
+          <h2 class="mb-4 font-sans text-xs font-semibold uppercase tracking-[0.18em] text-body">{group.title}</h2>
+          <ul class="m-0 flex list-none flex-col gap-2.5 p-0">
+            {group.items.map((item) => (
+              <li>
+                <a href={item.href} class="text-sm text-muted no-underline transition-colors hover:text-body">
+                  {item.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ))
+    }
+  </div>
+
+  <div class="border-t border-edge">
+    <div class="wrap flex flex-col gap-3 py-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
+      <p class="m-0">
+        © {year} {business.legalName}
+        {business.vatNumber && <span> · P.IVA {business.vatNumber}</span>}
+        {business.reaNumber && <span> · REA {business.reaNumber}</span>}
+      </p>
+      <p class="m-0 flex flex-wrap items-center gap-x-1">
+        <a href="/privacy" class="inline-flex min-h-11 items-center px-2 no-underline hover:underline">Privacy</a>
+        <span aria-hidden="true">·</span>
+        <a href="/cookie" class="inline-flex min-h-11 items-center px-2 no-underline hover:underline">Cookie</a>
+        <span aria-hidden="true">·</span>
+        <a href="/regolamento" class="inline-flex min-h-11 items-center px-2 no-underline hover:underline">
+          Regolamento
+        </a>
+      </p>
+    </div>
+  </div>
+</footer>
+
+<a
+  href={whatsappLink('Ciao Kinene, vorrei informazioni sui vostri servizi.')}
+  target="_blank"
+  rel="noopener noreferrer"
+  class="no-print fixed bottom-5 right-5 z-30 flex min-h-14 min-w-14 items-center justify-center rounded-full bg-primary text-on-primary shadow-lg shadow-black/20 transition-transform duration-200 hover:scale-105 active:scale-95 lg:hidden"
+  aria-label="Scrivici su WhatsApp"
+>
+  <Icon name="whatsapp" size={26} />
+</a>

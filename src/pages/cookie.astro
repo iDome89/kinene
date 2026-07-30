@@ -1,0 +1,91 @@
+---
+import Base from '@/layouts/Base.astro';
+import PageHero from '@/components/PageHero.astro';
+import Section from '@/components/Section.astro';
+import Callout from '@/components/Callout.astro';
+import { SESSION_COOKIE } from '@/lib/auth';
+
+const description =
+  'Cookie policy Kinene: questo sito non usa cookie di profilazione né strumenti di tracciamento di terze parti.';
+
+const breadcrumb = [
+  { name: 'Home', href: '/' },
+  { name: 'Cookie', href: '/cookie' },
+];
+---
+
+<Base title="Cookie policy" description={description} breadcrumb={breadcrumb}>
+  <PageHero
+    eyebrow="Cookie policy"
+    title="Quali cookie usiamo"
+    lead="La risposta breve: nessuno che richieda il tuo consenso."
+    breadcrumb={breadcrumb}
+  />
+
+  <Section>
+    <div class="prose-kinene">
+      <Callout tone="ok" title="Nessun banner, nessun tracciamento">
+        Questo sito non installa cookie di profilazione, non usa Google Analytics o strumenti equivalenti, non
+        carica font, mappe interattive o script da server di terze parti nelle pagine di navigazione. Per questo
+        non ti mostriamo un banner di consenso: non c’è nulla da consentire.
+      </Callout>
+
+      <h2>Cookie tecnici</h2>
+      <p>
+        Usiamo esclusivamente i cookie strettamente necessari al funzionamento del sito, esenti da consenso ai
+        sensi dell’art. 122 del Codice Privacy e delle Linee guida del Garante sui cookie.
+      </p>
+
+      <div class="mt-6 overflow-x-auto">
+        <table class="w-full min-w-[36rem] border-collapse text-left text-sm">
+          <caption class="sr-only">Elenco dei cookie tecnici utilizzati</caption>
+          <thead>
+            <tr class="border-b border-edge-strong">
+              <th scope="col" class="py-3 pr-6 font-sans text-xs font-semibold uppercase tracking-wide text-muted">Nome</th>
+              <th scope="col" class="py-3 pr-6 font-sans text-xs font-semibold uppercase tracking-wide text-muted">Finalità</th>
+              <th scope="col" class="py-3 pr-6 font-sans text-xs font-semibold uppercase tracking-wide text-muted">Durata</th>
+              <th scope="col" class="py-3 font-sans text-xs font-semibold uppercase tracking-wide text-muted">Chi lo installa</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-b border-edge">
+              <td class="py-4 pr-6 font-mono text-xs">{SESSION_COOKIE}</td>
+              <td class="py-4 pr-6">
+                Mantiene la sessione di accesso all’area di gestione riservata allo staff. Non viene mai
+                installato sui visitatori del sito pubblico.
+              </td>
+              <td class="py-4 pr-6">8 ore</td>
+              <td class="py-4">Kinene (prima parte)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Servizi di terze parti</h2>
+      <p>
+        Alcune pagine contengono collegamenti a servizi esterni. Aprendoli lasci questo sito e ti applicano le
+        loro informative:
+      </p>
+      <ul>
+        <li><strong>WhatsApp</strong> — quando premi i pulsanti di contatto.</li>
+        <li><strong>Instagram</strong> — quando apri il nostro profilo.</li>
+        <li><strong>Google Maps</strong> — quando apri il percorso verso la struttura.</li>
+        <li>
+          <strong>OpenStreetMap</strong> — la mappa nella pagina Contatti è caricata in un riquadro dal server di
+          OpenStreetMap, che riceve il tuo indirizzo IP. La mappa viene caricata solo quando scorri fino a quella
+          sezione ed è l’unico contenuto esterno incorporato nel sito.
+        </li>
+      </ul>
+
+      <h2>Come disattivare i cookie</h2>
+      <p>
+        Puoi bloccare o cancellare i cookie dalle impostazioni del tuo browser. Disattivando i cookie tecnici, il
+        sito pubblico continua a funzionare normalmente; l’accesso all’area di gestione non sarà invece possibile.
+      </p>
+
+      <p>
+        Per come trattiamo i dati che ci fornisci tu, vedi l’<a href="/privacy">informativa privacy</a>.
+      </p>
+    </div>
+  </Section>
+</Base>

@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: kinene
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+
+    # Free-tier preview: set `plan: free` and delete the `disk:` block below.
+    # The app still runs, but /data is ephemeral — bookings are lost on every
+    # redeploy and whenever the free instance sleeps. Fine to show the site,
+    # not fine for real customers.
+    disk:
+      name: kinene-data
+      mountPath: /data
+      sizeGB: 1
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_URL
+        value: file:/data/kinene.db
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_PASSWORD_HASH
+        sync: false
+      - key: NOTIFY_EMAIL
+        sync: false

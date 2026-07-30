@@ -1,0 +1,40 @@
+---
+interface Props {
+  eyebrow?: string;
+  title: string;
+  lead?: string;
+  breadcrumb?: readonly { name: string; href: string }[];
+}
+
+const { eyebrow, title, lead, breadcrumb } = Astro.props;
+---
+
+<section class="border-b border-edge bg-surface-sunken">
+  <div class="wrap py-12 md:py-16">
+    {
+      breadcrumb && (
+        <nav aria-label="Percorso" class="mb-6">
+          <ol class="m-0 flex list-none flex-wrap items-center gap-2 p-0 text-xs text-muted">
+            {breadcrumb.map((crumb, index) => (
+              <li class="flex items-center gap-2">
+                {index > 0 && <span aria-hidden="true">/</span>}
+                {index === breadcrumb.length - 1 ? (
+                  <span aria-current="page">{crumb.name}</span>
+                ) : (
+                  <a href={crumb.href} class="no-underline hover:underline">
+                    {crumb.name}
+                  </a>
+                )}
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )
+    }
+
+    {eyebrow && <p class="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-accent">{eyebrow}</p>}
+    <h1 class="max-w-4xl text-[clamp(2rem,1.4rem+2.6vw,3.2rem)] font-semibold">{title}</h1>
+    {lead && <p class="mt-5 max-w-2xl text-[1.05rem] leading-relaxed text-muted">{lead}</p>}
+    <slot />
+  </div>
+</section>

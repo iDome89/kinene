@@ -1,0 +1,231 @@
+---
+import type { GetStaticPaths } from 'astro';
+import Base from '@/layouts/Base.astro';
+import PageHero from '@/components/PageHero.astro';
+import Section from '@/components/Section.astro';
+import SectionHeading from '@/components/SectionHeading.astro';
+import Button from '@/components/Button.astro';
+import Icon from '@/components/Icon.astro';
+import Callout from '@/components/Callout.astro';
+import Figure from '@/components/Figure.astro';
+import { policy, serviceList, services, type ServiceId } from '@/config/business';
+import { serviceCopy } from '@/content/services';
+import { formatEuro } from '@/lib/pricing';
+import { whatsappLink } from '@/lib/links';
+
+export const getStaticPaths = (() =>
+  serviceList.map((service) => ({ params: { service: service.id } }))) satisfies GetStaticPaths;
+
+const serviceId = Astro.params.service as ServiceId;
+const service = services[serviceId];
+const copy = serviceCopy[serviceId];
+
+const others = serviceList.filter((candidate) => candidate.id !== serviceId);
+
+const breadcrumb = [
+  { name: 'Home', href: '/' },
+  { name: 'Servizi', href: '/servizi/pensione' },
+  { name: service.name, href: `/servizi/${service.id}` },
+];
+---
+
+<Base title={copy.metaTitle} description={copy.metaDescription} breadcrumb={breadcrumb}>
+  <Fragment slot="head">
+    <script
+      type="application/ld+json"
+      is:inline
+      set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Service',
+        name: service.name,
+        serviceType: copy.metaTitle,
+        description: copy.metaDescription,
+        provider: { '@id': `${Astro.site ?? 'https://kinene.it'}#business` },
+        areaServed: { '@type': 'AdministrativeArea', name: 'Provincia di Modena' },
+        offers: {
+          '@type': 'Offer',
+          price: (service.priceCents / 100).toFixed(2),
+          priceCurrency: 'EUR',
+          availability: 'https://schema.org/LimitedAvailability',
+        },
+      })}
+    />
+  </Fragment>
+
+  <PageHero eyebrow="Servizio" title={service.name} lead={copy.lead} breadcrumb={breadcrumb}>
+    <dl class="mt-10 grid max-w-3xl grid-cols-2 gap-x-8 gap-y-6 border-t border-edge pt-8 sm:grid-cols-4">
+      <div>
+        <dt class="text-xs uppercase tracking-[0.16em] text-muted">Tariffa</dt>
+        <dd class="m-0 mt-1.5 font-display text-xl font-semibold tabular-nums">
+          {formatEuro(service.priceCents)}
+        </dd>
+        <dd class="m-0 text-xs text-muted">al {service.priceUnit}</dd>
+      </div>
+      <div>
+        <dt class="text-xs uppercase tracking-[0.16em] text-muted">Consegna</dt>
+        <dd class="m-0 mt-1.5 font-display text-xl font-semibold tabular-nums">
+          {service.checkInFrom}—{service.checkInTo}
+        </dd>
+      </div>
+      <div>
+        <dt class="text-xs uppercase tracking-[0.16em] text-muted">Ritiro</dt>
+        <dd class="m-0 mt-1.5 font-display text-xl font-semibold tabular-nums">
+          {service.checkOutFrom}—{service.checkOutTo}
+        </dd>
+        <dd class="m-0 text-xs text-muted">
+          {service.checkOutNextDay ? 'il giorno successivo' : 'lo stesso giorno'}
+        </dd>
+      </div>
+      <div>
+        <dt class="text-xs uppercase tracking-[0.16em] text-muted">Durata max</dt>
+        <dd class="m-0 mt-1.5 font-display text-xl font-semibold tabular-nums">
+          {service.maxNights === null ? '—' : `${service.maxNights} ${service.maxNights === 1 ? 'notte' : 'notti'}`}
+        </dd>
+      </div>
+    </dl>
+
+    <div class="mt-9 flex flex-wrap gap-3">
+      <Button href={`/prenota?servizio=${service.id}`} variant="accent" size="lg">
+        Verifica disponibilità
+        <Icon name="arrow-right" size={18} />
+      </Button>
+      <Button
+        href={whatsappLink(`Ciao Kinene, vorrei informazioni su: ${service.name}.`)}
+        variant="outline"
+        size="lg"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <Icon name="whatsapp" size={18} />
+        Chiedi su WhatsApp
+      </Button>
+    </div>
+  </PageHero>
+
+  <Section labelledby="per-chi">
+    <div class="grid gap-12 lg:grid-cols-[1fr_1fr]">
+      <div>
+        <SectionHeading id="per-chi" eyebrow="Per chi" title="Quando ha senso" level={2} />
+        <ul class="mt-7 flex list-none flex-col gap-3 p-0">
+          {
+            copy.forWho.map((item) => (
+              <li class="flex items-start gap-3 text-[0.98rem] leading-relaxed">
+                <Icon name="check" size={18} class="mt-1 shrink-0 text-primary" />
+                <span>{item}</span>
+              </li>
+            ))
+          }
+        </ul>
+
+        <h3 class="mt-12 font-sans text-base font-semibold">Cosa è incluso</h3>
+        <ul class="mt-4 flex list-none flex-col gap-2.5 p-0">
+          {
+            copy.included.map((item) => (
+              <li class="flex items-start gap-3 text-sm leading-relaxed text-muted">
+                <Icon name="check" size={16} class="mt-0.5 shrink-0 text-ok" />
+                <span>{item}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="font-display text-2xl font-semibold">Come si svolge</h2>
+        <ol class="mt-7 m-0 flex list-none flex-col gap-0 p-0">
+          {
+            copy.dayInTheLife.map((slot, index) => (
+              <li class="relative flex gap-5 pb-7 last:pb-0">
+                {index < copy.dayInTheLife.length - 1 && (
+                  <span class="absolute left-[5px] top-3 h-full w-px bg-edge" aria-hidden="true" />
+                )}
+                <span class="relative mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                <div class="min-w-0">
+                  <p class="m-0 font-sans text-sm font-semibold tabular-nums">{slot.time}</p>
+                  <p class="m-0 mt-1 text-sm leading-relaxed text-muted">{slot.what}</p>
+                </div>
+              </li>
+            ))
+          }
+        </ol>
+
+        <div class="mt-10 flex flex-col gap-3">
+          {copy.notes.map((note) => <Callout tone="info">{note}</Callout>)}
+        </div>
+      </div>
+    </div>
+  </Section>
+
+  <Section tone="sunken" labelledby="requisiti">
+    <div class="grid gap-12 lg:grid-cols-[1.1fr_0.9fr]">
+      <div>
+        <SectionHeading
+          id="requisiti"
+          eyebrow="Requisiti"
+          title="Cosa serve per essere ammessi"
+          lead="Sono condizioni vincolanti, valide per tutti i servizi. Servono a tenere al sicuro il tuo cane e tutti gli altri."
+        />
+
+        <ul class="mt-8 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2">
+          {
+            [
+              { icon: 'shield' as const, text: 'Microchip registrato all’anagrafe canina' },
+              { icon: 'file' as const, text: 'Libretto sanitario aggiornato' },
+              { icon: 'shield' as const, text: 'Polizza RC verso terzi in corso di validità' },
+              { icon: 'syringe' as const, text: policy.requiredVaccinations.join(' + ') },
+              { icon: 'shield' as const, text: 'Antiparassitario attivo e certificato' },
+              { icon: 'heart' as const, text: 'Nessuna malattia contagiosa, ferita aperta o sutura' },
+              { icon: 'graduation' as const, text: `Comandi base: ${policy.requiredCommands.join(', ')}` },
+              { icon: 'paw' as const, text: 'Almeno un anno di età, nessuna femmina in calore' },
+            ].map((item) => (
+              <li class="flex items-start gap-3 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-4 text-sm">
+                <Icon name={item.icon} size={17} class="mt-0.5 shrink-0 text-primary" />
+                <span>{item.text}</span>
+              </li>
+            ))
+          }
+        </ul>
+
+        <div class="mt-8">
+          <Button href="/regolamento" variant="outline">
+            <Icon name="file" size={17} />
+            Regolamento completo
+          </Button>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-5">
+        <Figure caption={`Foto: ${service.name.toLowerCase()}`} ratio="4 / 3" />
+        <Callout tone="warning" title="Prima del soggiorno serve il test d’ingresso">
+          È un primo incontro conoscitivo, gratuito e obbligatorio. Senza questo passaggio non possiamo
+          accettare la prenotazione. <a href="/test-di-ingresso">Come funziona</a>.
+        </Callout>
+      </div>
+    </div>
+  </Section>
+
+  <Section labelledby="altri-servizi">
+    <SectionHeading id="altri-servizi" eyebrow="Alternative" title="Gli altri servizi" />
+    <ul class="mt-10 grid list-none grid-cols-1 gap-6 p-0 md:grid-cols-2">
+      {
+        others.map((other) => (
+          <li class="flex flex-col rounded-[var(--radius-card)] border border-edge bg-surface-raised p-7">
+            <h3 class="font-display text-xl font-semibold">{other.name}</h3>
+            <p class="mt-3 flex-1 text-sm leading-relaxed text-muted">{other.summary}</p>
+            <p class="mt-5 font-display text-lg font-semibold tabular-nums">
+              {formatEuro(other.priceCents)}
+              <span class="font-sans text-sm font-normal text-muted"> / {other.priceUnit}</span>
+            </p>
+            <a
+              href={`/servizi/${other.id}`}
+              class="mt-4 inline-flex items-center gap-2 text-sm font-medium text-accent no-underline hover:underline"
+            >
+              Vedi {other.name.toLowerCase()}
+              <Icon name="arrow-right" size={16} />
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </Section>
+</Base>

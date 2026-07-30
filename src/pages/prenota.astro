@@ -1,0 +1,511 @@
+---
+import Base from '@/layouts/Base.astro';
+import PageHero from '@/components/PageHero.astro';
+import Section from '@/components/Section.astro';
+import Button from '@/components/Button.astro';
+import Icon from '@/components/Icon.astro';
+import Callout from '@/components/Callout.astro';
+import BookingCalendar from '@/components/BookingCalendar';
+import { business, policy, services, type ServiceId } from '@/config/business';
+import { formatDayIt, todayInBusinessTimezone } from '@/lib/dates';
+import { formatEuro } from '@/lib/pricing';
+import { bookingReference, prepareBooking, readSubmission, spanIsAvailable } from '@/lib/booking';
+import { loadOccupancy } from '@/db/queries';
+import { db } from '@/db/client';
+import { bookings, dogs, owners } from '@/db/schema';
+import { consumeRateLimit, findDogByMicrochip, findOwnerByEmail } from '@/db/queries';
+import { eq } from 'drizzle-orm';
+import type { Violation } from '@/lib/rules';
+
+export const prerender = false;
+
+const description =
+  'Richiedi una prenotazione per pensione, asilo diurno o asilo notturno a Kinene, Guiglia (MO). Il calendario mostra la disponibilità reale.';
+
+const breadcrumb = [
+  { name: 'Home', href: '/' },
+  { name: 'Prenota', href: '/prenota' },
+];
+
+const requestedService = Astro.url.searchParams.get('servizio');
+let initialService: ServiceId =
+  requestedService && requestedService in services ? (requestedService as ServiceId) : 'pensione';
+
+let violations: readonly Violation[] = [];
+let submitted: { reference: string; startDay: number; endDay: number; priceCents: number; service: ServiceId } | null =
+  null;
+let fatalError: string | null = null;
+let previous: Record<string, string> = {};
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const fields = readSubmission(form);
+
+  previous = Object.fromEntries(
+    Object.entries(fields).map(([key, value]) => [key, typeof value === 'string' ? value : value ? 'on' : '']),
+  );
+
+  if (fields.service in services) initialService = fields.service as ServiceId;
+
+  const clientKey = `booking:${Astro.clientAddress ?? 'unknown'}`;
+  const allowed = await consumeRateLimit(clientKey, 6, Date.now());
+
+  if (!allowed) {
+    fatalError = 'Troppe richieste in poco tempo. Riprova tra qualche minuto o scrivici su WhatsApp.';
+  } else {
+    const today = todayInBusinessTimezone();
+    const prepared = prepareBooking(fields, today);
+
+    if (!prepared.ok) {
+      violations = prepared.violations;
+    } else {
+      const { booking } = prepared;
+      const grid = await loadOccupancy(today, booking.occupies.toExclusive - today + 1);
+
+      if (!spanIsAvailable(grid, booking.occupies)) {
+        violations = [
+          {
+            code: 'invalid-range',
+            field: 'startDate',
+            message: 'Le date scelte non sono più disponibili. Seleziona un altro intervallo.',
+          },
+        ];
+      } else {
+        const now = Date.now();
+
+        const existingOwner = await findOwnerByEmail(fields.email);
+        const ownerId =
+          existingOwner?.id ??
+          (
+            await db
+              .insert(owners)
+              .values({
+                firstName: fields.firstName,
+                lastName: fields.lastName,
+                email: fields.email,
+                phone: fields.phone,
+                address: fields.address || null,
+                gdprConsentAt: now,
+                rulesAcceptedAt: now,
+                createdAt: now,
+              })
+              .returning({ id: owners.id })
+          )[0]!.id;
+
+        if (existingOwner) {
+          await db
+            .update(owners)
+            .set({ phone: fields.phone, gdprConsentAt: now, rulesAcceptedAt: now })
+            .where(eq(owners.id, ownerId));
+        }
+
+        const existingDog = await findDogByMicrochip(fields.microchip);
+        const dogId =
+          existingDog?.id ??
+          (
+            await db
+              .insert(dogs)
+              .values({
+                ownerId,
+                name: fields.dogName,
+                breed: fields.breed || null,
+                birthDay: booking.birthDay,
+                sex: booking.dog.sex,
+                microchip: fields.microchip,
+                insurancePolicy: fields.insurancePolicy || null,
+                vetName: fields.vetName || null,
+                vetPhone: fields.vetPhone || null,
+                foodNotes: fields.foodNotes || null,
+                allergies: fields.allergies || null,
+                medications: fields.medications || null,
+                createdAt: now,
+              })
+              .returning({ id: dogs.id })
+          )[0]!.id;
+
+        if (existingDog) {
+          await db
+            .update(dogs)
+            .set({
+              name: fields.dogName,
+              foodNotes: fields.foodNotes || null,
+              allergies: fields.allergies || null,
+              medications: fields.medications || null,
+              vetName: fields.vetName || null,
+              vetPhone: fields.vetPhone || null,
+            })
+            .where(eq(dogs.id, dogId));
+        }
+
+        const reference = bookingReference(crypto.getRandomValues(new Uint8Array(6)));
+
+        await db.insert(bookings).values({
+          reference,
+          dogId,
+          service: booking.service,
+          startDay: booking.startDay,
+          endDay: booking.endDay,
+          occupiesFrom: booking.occupies.from,
+          occupiesTo: booking.occupies.toExclusive,
+          status: 'requested',
+          priceCents: booking.priceCents,
+          notes: fields.notes || null,
+          createdAt: now,
+        });
+
+        submitted = {
+          reference,
+          startDay: booking.startDay,
+          endDay: booking.endDay,
+          priceCents: booking.priceCents,
+          service: booking.service,
+        };
+      }
+    }
+  }
+}
+
+const errorFor = (field: string) => violations.find((violation) => violation.field === field)?.message;
+const value = (key: string) => previous[key] ?? '';
+const checked = (key: string) => previous[key] === 'on';
+const isResubmission = Astro.request.method === 'POST';
+
+const inputClass =
+  'mt-1.5 block min-h-11 w-full rounded-lg border border-edge-strong bg-surface-raised px-3.5 py-2 outline-none transition-colors focus:border-accent';
+const labelClass = 'block text-sm font-medium';
+const hintClass = 'mt-1 block text-xs text-muted';
+---
+
+<Base title="Richiedi una prenotazione" description={description} noindex breadcrumb={breadcrumb}>
+  {
+    submitted ? (
+      <Section>
+        <div class="mx-auto max-w-2xl text-center">
+          <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-surface-tint text-ok">
+            <Icon name="check" size={30} />
+          </span>
+          <h1 class="mt-7 text-[clamp(1.8rem,1.4rem+2vw,2.6rem)] font-semibold">Richiesta inviata</h1>
+          <p class="mt-4 text-muted">
+            Abbiamo ricevuto la tua richiesta. <strong class="text-body">Non è ancora una conferma:</strong>{' '}
+            verifichiamo la disponibilità e ti rispondiamo, di norma entro 24 ore.
+          </p>
+
+          <dl class="mx-auto mt-9 flex max-w-md flex-col gap-3 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-7 text-left text-sm">
+            <div class="flex justify-between gap-4">
+              <dt class="text-muted">Riferimento</dt>
+              <dd class="m-0 font-mono font-semibold">{submitted.reference}</dd>
+            </div>
+            <div class="flex justify-between gap-4">
+              <dt class="text-muted">Servizio</dt>
+              <dd class="m-0 font-medium">{services[submitted.service].name}</dd>
+            </div>
+            <div class="flex justify-between gap-4">
+              <dt class="text-muted">Consegna</dt>
+              <dd class="m-0 font-medium">{formatDayIt(submitted.startDay)}</dd>
+            </div>
+            <div class="flex justify-between gap-4">
+              <dt class="text-muted">Ritiro</dt>
+              <dd class="m-0 font-medium">{formatDayIt(submitted.endDay)}</dd>
+            </div>
+            <div class="flex justify-between gap-4 border-t border-edge pt-3">
+              <dt class="text-muted">Totale stimato</dt>
+              <dd class="m-0 font-display text-lg font-semibold">{formatEuro(submitted.priceCents)}</dd>
+            </div>
+          </dl>
+
+          <div class="mx-auto mt-8 max-w-md">
+            <Callout tone="warning" title="Se non hai ancora fatto il test d’ingresso">
+              È obbligatorio prima del primo soggiorno ed è gratuito.{' '}
+              <a href="/test-di-ingresso">Fissalo adesso</a>.
+            </Callout>
+          </div>
+
+          <div class="mt-8 flex flex-wrap justify-center gap-3">
+            <Button href="/" variant="outline">Torna alla home</Button>
+            <Button href="/contatti" variant="accent">Contattaci</Button>
+          </div>
+        </div>
+      </Section>
+    ) : (
+      <>
+        <PageHero
+          eyebrow="Prenotazione"
+          title="Verifica la disponibilità"
+          lead="Il calendario mostra i posti realmente liberi. Invii una richiesta, noi la confermiamo: nulla è dovuto prima della conferma e il saldo avviene il giorno del check-in."
+          breadcrumb={breadcrumb}
+        />
+
+        <Section>
+          <form method="POST" novalidate class="grid gap-12 lg:grid-cols-[1.15fr_0.85fr]">
+            <div>
+              {fatalError && (
+                <Callout tone="warning" title="Richiesta non inviata" class="mb-8">
+                  {fatalError}
+                </Callout>
+              )}
+
+              {violations.length > 0 && (
+                <div
+                  role="alert"
+                  class="mb-8 rounded-[var(--radius-card)] border border-danger/35 bg-danger-surface p-6"
+                >
+                  <p class="m-0 font-semibold text-danger">
+                    {violations.length === 1
+                      ? 'C’è un problema da risolvere'
+                      : `Ci sono ${violations.length} problemi da risolvere`}
+                  </p>
+                  <ul class="m-0 mt-3 flex list-none flex-col gap-1.5 p-0 text-sm">
+                    {violations.map((violation) => (
+                      <li>
+                        <a href={`#field-${violation.field}`} class="text-danger underline underline-offset-2">
+                          {violation.message}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <h2 class="font-display text-2xl font-semibold">1. Servizio e date</h2>
+              <div class="mt-6">
+                <BookingCalendar
+                  client:load
+                  service={initialService}
+                  months={3}
+                  initialStart={value('startDate')}
+                  initialEnd={value('endDate')}
+                />
+              </div>
+
+              <noscript>
+                <div class="mt-6 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label class={labelClass} for="field-startDate">Data di consegna</label>
+                    <input id="field-startDate" class={inputClass} type="date" name="startDate" required />
+                  </div>
+                  <div>
+                    <label class={labelClass} for="field-endDate">Data di ritiro</label>
+                    <input id="field-endDate" class={inputClass} type="date" name="endDate" />
+                  </div>
+                </div>
+              </noscript>
+
+              <h2 class="mt-14 font-display text-2xl font-semibold">2. Il cane</h2>
+              <div class="mt-6 grid gap-5 sm:grid-cols-2">
+                <div>
+                  <label class={labelClass} for="field-dogName">Nome <span aria-hidden="true">*</span></label>
+                  <input id="field-dogName" class={inputClass} type="text" name="dogName" value={value('dogName')} required autocomplete="off" />
+                  {errorFor('dogName') && <span class="mt-1 block text-xs text-danger">{errorFor('dogName')}</span>}
+                </div>
+                <div>
+                  <label class={labelClass} for="field-breed">Razza</label>
+                  <input id="field-breed" class={inputClass} type="text" name="breed" value={value('breed')} />
+                </div>
+                <div>
+                  <label class={labelClass} for="field-birthDate">Data di nascita <span aria-hidden="true">*</span></label>
+                  <input id="field-birthDate" class={inputClass} type="date" name="birthDate" value={value('birthDate')} required />
+                  <span class={hintClass}>Non accettiamo cani sotto un anno di età.</span>
+                  {errorFor('birthDate') && <span class="mt-1 block text-xs text-danger">{errorFor('birthDate')}</span>}
+                </div>
+                <div>
+                  <label class={labelClass} for="field-sex">Sesso <span aria-hidden="true">*</span></label>
+                  <select id="field-sex" class={inputClass} name="sex" required>
+                    <option value="">Seleziona…</option>
+                    <option value="M" selected={value('sex') === 'M'}>Maschio</option>
+                    <option value="F" selected={value('sex') === 'F'}>Femmina</option>
+                  </select>
+                  {errorFor('sex') && <span class="mt-1 block text-xs text-danger">{errorFor('sex')}</span>}
+                </div>
+                <div>
+                  <label class={labelClass} for="field-microchip">Microchip <span aria-hidden="true">*</span></label>
+                  <input id="field-microchip" class={inputClass} type="text" inputmode="numeric" name="microchip" value={value('microchip')} required pattern="[0-9\s]{15,20}" />
+                  <span class={hintClass}>15 cifre, registrato all’anagrafe canina.</span>
+                  {errorFor('microchip') && <span class="mt-1 block text-xs text-danger">{errorFor('microchip')}</span>}
+                </div>
+                <div>
+                  <label class={labelClass} for="field-insurancePolicy">Polizza RC — estremi</label>
+                  <input id="field-insurancePolicy" class={inputClass} type="text" name="insurancePolicy" value={value('insurancePolicy')} />
+                </div>
+                <div>
+                  <label class={labelClass} for="field-vetName">Veterinario di fiducia</label>
+                  <input id="field-vetName" class={inputClass} type="text" name="vetName" value={value('vetName')} />
+                  <span class={hintClass}>In sua assenza ci rivolgiamo a {policy.emergencyClinic}.</span>
+                </div>
+                <div>
+                  <label class={labelClass} for="field-vetPhone">Telefono del veterinario</label>
+                  <input id="field-vetPhone" class={inputClass} type="tel" name="vetPhone" value={value('vetPhone')} />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class={labelClass} for="field-foodNotes">Alimentazione e orari dei pasti</label>
+                  <textarea id="field-foodNotes" class={`${inputClass} min-h-24`} name="foodNotes" rows="3">{value('foodNotes')}</textarea>
+                  <span class={hintClass}>Il cibo abituale lo porti tu, con l’eventuale misurino.</span>
+                </div>
+                <div>
+                  <label class={labelClass} for="field-allergies">Allergie e diete speciali</label>
+                  <textarea id="field-allergies" class={`${inputClass} min-h-20`} name="allergies" rows="2">{value('allergies')}</textarea>
+                </div>
+                <div>
+                  <label class={labelClass} for="field-medications">Terapie in corso</label>
+                  <textarea id="field-medications" class={`${inputClass} min-h-20`} name="medications" rows="2">{value('medications')}</textarea>
+                  <span class={hintClass}>Solo dietro prescrizione veterinaria scritta.</span>
+                </div>
+              </div>
+
+              <h2 class="mt-14 font-display text-2xl font-semibold">3. Dichiarazioni obbligatorie</h2>
+              <p class="mt-2 text-sm text-muted">
+                Sono i requisiti del regolamento. Vengono verificati alla consegna.
+              </p>
+
+              <ul class="mt-6 flex list-none flex-col gap-px overflow-hidden rounded-[var(--radius-card)] border border-edge bg-edge p-0">
+                {
+                  [
+                    { name: 'hasMicrochip', label: 'Il cane ha il microchip registrato all’anagrafe canina' },
+                    { name: 'hasHealthRecord', label: 'Consegnerò il libretto sanitario aggiornato all’arrivo' },
+                    { name: 'hasInsurance', label: 'Il cane è coperto da polizza RC verso terzi in corso di validità' },
+                    { name: 'hasVaccinations', label: `Vaccinazioni in regola: ${policy.requiredVaccinations.join(', ')}` },
+                    { name: 'hasParasiteTreatment', label: 'Trattamento antipulci, zecche e filaria attivo e certificato' },
+                    { name: 'isHealthy', label: 'Il cane non ha malattie contagiose, ferite aperte o punti di sutura' },
+                    { name: 'knowsBaseCommands', label: `Il cane esegue i comandi base: ${policy.requiredCommands.join(', ')}` },
+                  ].map((item) => (
+                    <li class="bg-surface-raised">
+                      <label class="flex min-h-14 cursor-pointer items-start gap-3.5 p-4" for={`field-${item.name}`}>
+                        <input
+                          id={`field-${item.name}`}
+                          type="checkbox"
+                          name={item.name}
+                          checked={isResubmission ? checked(item.name) : false}
+                          class="mt-0.5 h-5 w-5 shrink-0 accent-[var(--t-primary)]"
+                        />
+                        <span class="text-sm leading-relaxed">
+                          {item.label}
+                          {errorFor(item.name) && (
+                            <span class="mt-1 block text-xs font-medium text-danger">{errorFor(item.name)}</span>
+                          )}
+                        </span>
+                      </label>
+                    </li>
+                  ))
+                }
+
+                <li class="bg-surface-raised">
+                  <label class="flex min-h-14 cursor-pointer items-start gap-3.5 p-4" for="field-inHeatOrNear">
+                    <input id="field-inHeatOrNear" type="checkbox" name="inHeatOrNear" checked={checked('inHeatOrNear')} class="mt-0.5 h-5 w-5 shrink-0 accent-[var(--t-primary)]" />
+                    <span class="text-sm leading-relaxed">
+                      La femmina è in calore o in prossimità del calore nelle date richieste
+                      <span class="mt-1 block text-xs text-muted">
+                        Se è così non possiamo accettarla: contattaci e riprogrammiamo senza penali.
+                      </span>
+                      {errorFor('inHeatOrNear') && (
+                        <span class="mt-1 block text-xs font-medium text-danger">{errorFor('inHeatOrNear')}</span>
+                      )}
+                    </span>
+                  </label>
+                </li>
+
+                <li class="bg-surface-raised">
+                  <label class="flex min-h-14 cursor-pointer items-start gap-3.5 p-4" for="field-hasAggressionHistory">
+                    <input id="field-hasAggressionHistory" type="checkbox" name="hasAggressionHistory" checked={checked('hasAggressionHistory')} class="mt-0.5 h-5 w-5 shrink-0 accent-[var(--t-primary)]" />
+                    <span class="text-sm leading-relaxed">
+                      Il cane ha manifestato aggressività, intolleranza o forte reattività verso persone o altri animali
+                      {errorFor('hasAggressionHistory') && (
+                        <span class="mt-1 block text-xs font-medium text-danger">{errorFor('hasAggressionHistory')}</span>
+                      )}
+                    </span>
+                  </label>
+                </li>
+              </ul>
+
+              <h2 class="mt-14 font-display text-2xl font-semibold">4. I tuoi dati</h2>
+              <div class="mt-6 grid gap-5 sm:grid-cols-2">
+                <div>
+                  <label class={labelClass} for="field-firstName">Nome <span aria-hidden="true">*</span></label>
+                  <input id="field-firstName" class={inputClass} type="text" name="firstName" value={value('firstName')} required autocomplete="given-name" />
+                  {errorFor('firstName') && <span class="mt-1 block text-xs text-danger">{errorFor('firstName')}</span>}
+                </div>
+                <div>
+                  <label class={labelClass} for="field-lastName">Cognome <span aria-hidden="true">*</span></label>
+                  <input id="field-lastName" class={inputClass} type="text" name="lastName" value={value('lastName')} required autocomplete="family-name" />
+                </div>
+                <div>
+                  <label class={labelClass} for="field-email">Email <span aria-hidden="true">*</span></label>
+                  <input id="field-email" class={inputClass} type="email" name="email" value={value('email')} required autocomplete="email" />
+                  {errorFor('email') && <span class="mt-1 block text-xs text-danger">{errorFor('email')}</span>}
+                </div>
+                <div>
+                  <label class={labelClass} for="field-phone">Telefono <span aria-hidden="true">*</span></label>
+                  <input id="field-phone" class={inputClass} type="tel" name="phone" value={value('phone')} required autocomplete="tel" />
+                  <span class={hintClass}>Devi essere reperibile per tutta la durata del soggiorno.</span>
+                  {errorFor('phone') && <span class="mt-1 block text-xs text-danger">{errorFor('phone')}</span>}
+                </div>
+                <div class="sm:col-span-2">
+                  <label class={labelClass} for="field-address">Indirizzo</label>
+                  <input id="field-address" class={inputClass} type="text" name="address" value={value('address')} autocomplete="street-address" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class={labelClass} for="field-notes">Note per noi</label>
+                  <textarea id="field-notes" class={`${inputClass} min-h-24`} name="notes" rows="3">{value('notes')}</textarea>
+                </div>
+              </div>
+
+              <div class="mt-10 flex flex-col gap-4 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
+                <label class="flex cursor-pointer items-start gap-3.5" for="field-acceptedRules">
+                  <input id="field-acceptedRules" type="checkbox" name="acceptedRules" checked={checked('acceptedRules')} class="mt-0.5 h-5 w-5 shrink-0 accent-[var(--t-primary)]" required />
+                  <span class="text-sm leading-relaxed">
+                    Ho letto e accetto integralmente il <a href="/regolamento" class="text-accent underline underline-offset-2">regolamento interno</a>,
+                    comprese le condizioni su disdette, ritardi e allontanamento. <span aria-hidden="true">*</span>
+                    {errorFor('acceptedRules') && (
+                      <span class="mt-1 block text-xs font-medium text-danger">{errorFor('acceptedRules')}</span>
+                    )}
+                  </span>
+                </label>
+
+                <label class="flex cursor-pointer items-start gap-3.5 border-t border-edge pt-4" for="field-acceptedPrivacy">
+                  <input id="field-acceptedPrivacy" type="checkbox" name="acceptedPrivacy" checked={checked('acceptedPrivacy')} class="mt-0.5 h-5 w-5 shrink-0 accent-[var(--t-primary)]" required />
+                  <span class="text-sm leading-relaxed">
+                    Acconsento al trattamento dei miei dati personali per la gestione della richiesta, come
+                    descritto nell’<a href="/privacy" class="text-accent underline underline-offset-2">informativa privacy</a>. <span aria-hidden="true">*</span>
+                    {errorFor('acceptedPrivacy') && (
+                      <span class="mt-1 block text-xs font-medium text-danger">{errorFor('acceptedPrivacy')}</span>
+                    )}
+                  </span>
+                </label>
+              </div>
+
+              <div class="mt-8">
+                <Button type="submit" variant="accent" size="lg" data-testid="submit-booking">
+                  Invia la richiesta
+                  <Icon name="arrow-right" size={18} />
+                </Button>
+                <p class="mt-3 text-xs text-muted">
+                  Invii una richiesta, non una prenotazione confermata. Nessun pagamento è dovuto adesso.
+                </p>
+              </div>
+            </div>
+
+            <aside class="lg:sticky lg:top-28 lg:self-start">
+              <div class="flex flex-col gap-4">
+                <Callout tone="warning" title="Il test d’ingresso viene prima">
+                  È gratuito e obbligatorio prima del primo soggiorno. Se non l’hai ancora fatto, la richiesta
+                  resta valida ma il soggiorno non può iniziare finché non ci siamo conosciuti.{' '}
+                  <a href="/test-di-ingresso">Come funziona</a>.
+                </Callout>
+
+                <Callout tone="info" title="Disdette">
+                  Gratuita fino a {policy.standardCancellationDays} giorni prima, penale del{' '}
+                  {policy.lateCancellationFeeRatio * 100}% oltre tale termine. In alta stagione (Natale, agosto,
+                  Pasqua) servono {policy.highSeasonCancellationDays} giorni di preavviso.
+                </Callout>
+
+                <Callout tone="info" title="Preferisci parlare?">
+                  Chiama {business.contact.personName} al{' '}
+                  <a href={`tel:${business.contact.phone}`}>{business.contact.phoneDisplay}</a> oppure scrivi su
+                  WhatsApp.
+                </Callout>
+              </div>
+            </aside>
+          </form>
+        </Section>
+      </>
+    )
+  }
+</Base>

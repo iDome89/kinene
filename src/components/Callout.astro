@@ -1,0 +1,30 @@
+---
+import Icon, { type IconName } from './Icon.astro';
+
+interface Props {
+  tone?: 'info' | 'warning' | 'ok';
+  title?: string;
+  icon?: IconName;
+  class?: string;
+}
+
+const { tone = 'info', title, icon, class: className = '' } = Astro.props;
+
+const tones = {
+  info: { wrap: 'border-edge bg-surface-tint', mark: 'text-primary', icon: 'shield' as IconName },
+  warning: { wrap: 'border-danger/35 bg-danger-surface', mark: 'text-danger', icon: 'alert' as IconName },
+  ok: { wrap: 'border-ok/35 bg-surface-tint', mark: 'text-ok', icon: 'check' as IconName },
+};
+
+const config = tones[tone];
+---
+
+<div class={`flex gap-4 rounded-[var(--radius-card)] border p-5 ${config.wrap} ${className}`}>
+  <Icon name={icon ?? config.icon} size={21} class={`mt-0.5 shrink-0 ${config.mark}`} />
+  <div class="min-w-0">
+    {title && <p class="m-0 font-sans text-sm font-semibold">{title}</p>}
+    <div class={`callout-body text-sm leading-relaxed text-muted ${title ? 'mt-1.5' : ''}`}>
+      <slot />
+    </div>
+  </div>
+</div>

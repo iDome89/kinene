@@ -1,0 +1,126 @@
+---
+import Base from '@/layouts/Base.astro';
+import PageHero from '@/components/PageHero.astro';
+import Section from '@/components/Section.astro';
+import SectionHeading from '@/components/SectionHeading.astro';
+import Figure from '@/components/Figure.astro';
+import Button from '@/components/Button.astro';
+import Icon from '@/components/Icon.astro';
+import { business } from '@/config/business';
+import { telLink } from '@/lib/links';
+
+const description =
+  'Kinene è un allevamento di Cane Corso a Guiglia (MO) che offre pensione, asilo e dog sitting. La struttura è gestita da Valeria Borda, addestratrice cinofila.';
+
+const breadcrumb = [
+  { name: 'Home', href: '/' },
+  { name: 'Chi siamo', href: '/chi-siamo' },
+];
+
+const principles = [
+  {
+    icon: 'users' as const,
+    title: 'I gruppi si costruiscono, non si improvvisano',
+    body: 'Nessun cane viene inserito in un gruppo senza che ne siano stati valutati carattere, taglia ed energia. È il motivo per cui il test d’ingresso è obbligatorio e non negoziabile.',
+  },
+  {
+    icon: 'clock' as const,
+    title: 'La routine di casa resta la routine',
+    body: 'Il cibo lo porti tu, gli orari di pappa e nanna ce li dai tu. Un soggiorno riuscito è quello in cui il cane cambia posto, non abitudini.',
+  },
+  {
+    icon: 'heart' as const,
+    title: 'Il riposo conta quanto il movimento',
+    body: 'Un cane stimolato dieci ore di fila non è un cane felice, è un cane sovraeccitato. Le pause sono parte del programma.',
+  },
+  {
+    icon: 'shield' as const,
+    title: 'Diciamo di no quando serve',
+    body: 'Non accettiamo cuccioli, femmine in calore, cani reattivi o senza i comandi di base. Un no detto prima evita un problema serio dopo.',
+  },
+];
+---
+
+<Base title="Chi siamo" description={description} breadcrumb={breadcrumb}>
+  <PageHero
+    eyebrow="La struttura"
+    title="Un allevamento che sa gestire i cani degli altri"
+    lead="Kinene nasce come allevamento di Cane Corso sull’Appennino modenese. Da lì viene tutto il resto: la conoscenza delle razze impegnative, la lettura del comportamento, la gestione dei gruppi."
+    breadcrumb={breadcrumb}
+  />
+
+  <Section labelledby="valeria">
+    <div class="grid items-start gap-12 lg:grid-cols-[0.9fr_1.1fr]">
+      <Figure caption={`Foto di ${business.contact.personName}`} icon="users" ratio="4 / 5" />
+
+      <div>
+        <SectionHeading
+          id="valeria"
+          eyebrow="Chi gestisce la struttura"
+          title={business.contact.personName}
+        />
+
+        <div class="prose-kinene mt-6">
+          <p class="text-muted">
+            Addestratrice cinofila, con esperienza nella gestione di cani di grande e piccola taglia. È lei che
+            fa il test d’ingresso, che compone i gruppi, che decide chi può stare con chi e che ti richiama se
+            durante il soggiorno succede qualcosa.
+          </p>
+          <p class="text-muted">
+            Non c’è un turnover di personale a cui spiegare da capo le abitudini del tuo cane: la persona che
+            conosci al primo incontro è la stessa che se ne occupa tutti i giorni.
+          </p>
+        </div>
+
+        <div class="mt-8 flex flex-wrap gap-3">
+          <Button href="/test-di-ingresso" variant="accent">
+            Prenota il test d’ingresso
+            <Icon name="arrow-right" size={17} />
+          </Button>
+          <Button href={telLink()} variant="outline">
+            <Icon name="phone" size={17} />
+            {business.contact.phoneDisplay}
+          </Button>
+        </div>
+      </div>
+    </div>
+  </Section>
+
+  <Section tone="sunken" labelledby="principi">
+    <SectionHeading
+      id="principi"
+      eyebrow="Come lavoriamo"
+      title="Quattro principi, applicati sempre"
+      lead="Non sono slogan da homepage: sono le regole che determinano chi accettiamo e come organizziamo le giornate."
+    />
+
+    <ul class="mt-12 grid list-none grid-cols-1 gap-6 p-0 md:grid-cols-2">
+      {
+        principles.map((item) => (
+          <li class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-7">
+            <span class="flex h-11 w-11 items-center justify-center rounded-full bg-surface-tint text-primary">
+              <Icon name={item.icon} size={21} />
+            </span>
+            <h3 class="mt-5 font-sans text-base font-semibold">{item.title}</h3>
+            <p class="mt-2 text-sm leading-relaxed text-muted">{item.body}</p>
+          </li>
+        ))
+      }
+    </ul>
+  </Section>
+
+  <Section labelledby="struttura">
+    <SectionHeading
+      id="struttura"
+      eyebrow="Gli spazi"
+      title="Dove dorme e dove gioca"
+      lead="Vieni a vederli di persona: il test d’ingresso serve anche a questo."
+    />
+
+    <div class="mt-12 grid gap-6 md:grid-cols-3">
+      <Figure caption="Aree verdi recintate" icon="leaf" ratio="3 / 4" />
+      <Figure caption="Zona riposo e box" icon="heart" ratio="3 / 4" />
+      <Figure caption="Area gioco e socializzazione" icon="paw" ratio="3 / 4" />
+    </div>
+  </Section>
+</Base>

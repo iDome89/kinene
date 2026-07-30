@@ -1,0 +1,87 @@
+---
+import '@/styles/global.css';
+import Logo from '@/components/Logo.astro';
+import { SESSION_COOKIE, createSession, sessionCookieOptions, verifyPassword } from '@/lib/auth';
+import { adminPasswordHash, adminSecret } from '@/lib/admin-env';
+import { consumeRateLimit } from '@/db/queries';
+
+export const prerender = false;
+
+const secret = adminSecret();
+const storedHash = adminPasswordHash();
+const requestedNext = Astro.url.searchParams.get('next') ?? '/admin';
+const safeNext = requestedNext.startsWith('/admin') ? requestedNext : '/admin';
+
+let error: string | null = null;
+
+if (!secret || !storedHash) {
+  error = 'Admin non configurato: mancano SESSION_SECRET e ADMIN_PASSWORD_HASH.';
+} else if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const password = String(form.get('password') ?? '');
+
+  const allowed = await consumeRateLimit(`login:${Astro.clientAddress ?? 'unknown'}`, 8, Date.now());
+
+  if (!allowed) {
+    error = 'Troppi tentativi. Riprova tra qualche minuto.';
+  } else if (verifyPassword(password, storedHash)) {
+    Astro.cookies.set(
+      SESSION_COOKIE,
+      createSession(secret),
+      sessionCookieOptions(Astro.url.protocol === 'https:'),
+    );
+    return Astro.redirect(safeNext, 302);
+  } else {
+    error = 'Password non corretta.';
+  }
+}
+---
+
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Accesso · Kinene admin</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body class="flex min-h-dvh items-center justify-center bg-surface-sunken p-6">
+    <main class="w-full max-w-sm">
+      <div class="flex flex-col items-center">
+        <Logo size={96} priority />
+        <h1 class="mt-6 font-display text-2xl font-semibold">Gestione Kinene</h1>
+      </div>
+
+      <form method="POST" class="mt-8 flex flex-col gap-4 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-7">
+        {
+          error && (
+            <p role="alert" class="m-0 rounded-lg border border-danger/35 bg-danger-surface p-3 text-sm text-danger">
+              {error}
+            </p>
+          )
+        }
+
+        <div>
+          <label for="password" class="block text-sm font-medium">Password</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            required
+            autocomplete="current-password"
+            autofocus
+            class="mt-1.5 block min-h-11 w-full rounded-lg border border-edge-strong bg-surface px-3.5 py-2 outline-none transition-colors focus:border-accent"
+          />
+        </div>
+
+        <button
+          type="submit"
+          class="min-h-12 rounded-full bg-accent px-6 font-medium text-on-accent transition-colors hover:bg-accent-hover"
+        >
+          Entra
+        </button>
+      </form>
+    </main>
+  </body>
+</html>

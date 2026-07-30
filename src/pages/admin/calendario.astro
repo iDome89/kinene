@@ -1,0 +1,162 @@
+---
+import Admin from '@/layouts/Admin.astro';
+import { loadOccupancy, listBookingsOverlapping } from '@/db/queries';
+import { availabilityWindow } from '@/lib/availability';
+import {
+  civilFromDay,
+  dayFromCivil,
+  daysInMonth,
+  formatDayShortIt,
+  monthNameIt,
+  parseDay,
+  startOfMonth,
+  todayInBusinessTimezone,
+  weekdayOf,
+} from '@/lib/dates';
+import { isHighSeason } from '@/lib/season';
+import { services } from '@/config/business';
+
+export const prerender = false;
+
+const today = todayInBusinessTimezone();
+const requested = parseDay(`${Astro.url.searchParams.get('mese') ?? ''}-01`);
+const monthStart = requested === null ? startOfMonth(today) : requested;
+const { year, month } = civilFromDay(monthStart);
+const total = daysInMonth(year, month);
+
+const grid = await loadOccupancy(monthStart, total);
+const days = availabilityWindow(grid);
+const stays = await listBookingsOverlapping(monthStart, monthStart + total);
+
+const monthKey = (offset: number) => {
+  const target = month - 1 + offset;
+  const y = year + Math.floor(target / 12);
+  const m = ((target % 12) + 12) % 12 + 1;
+  return `${y}-${String(m).padStart(2, '0')}`;
+};
+
+const leadingPad = Array.from({ length: (weekdayOf(monthStart) + 6) % 7 }, (_, i) => i);
+const peak = days.reduce((max, day) => Math.max(max, day.taken), 0);
+
+const cells = days.map((day, index) => {
+  const closed = day.capacity < 1;
+  const load = closed ? 0 : day.taken / day.capacity;
+  return {
+    number: index + 1,
+    closed,
+    isToday: day.day === today,
+    isHighSeason: isHighSeason(day.day),
+    occupancyLabel: closed ? 'chiuso' : `${day.taken}/${day.capacity}`,
+    tone: closed
+      ? 'border-dashed border-edge-strong bg-surface-sunken'
+      : load >= 1
+        ? 'border-danger/40 bg-danger-surface'
+        : load >= 0.7
+          ? 'border-accent/45 bg-accent-100'
+          : 'border-edge bg-surface',
+  };
+});
+---
+
+<Admin title="Calendario" active="calendario">
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <h1 class="m-0 font-display text-2xl font-semibold capitalize">{monthNameIt(month)} {year}</h1>
+    <div class="flex gap-2">
+      <a
+        href={`/admin/calendario?mese=${monthKey(-1)}`}
+        class="min-h-11 rounded-full border border-edge-strong px-4 py-2.5 text-sm no-underline transition-colors hover:bg-surface-tint"
+      >
+        ← Mese precedente
+      </a>
+      <a
+        href={`/admin/calendario?mese=${monthKey(1)}`}
+        class="min-h-11 rounded-full border border-edge-strong px-4 py-2.5 text-sm no-underline transition-colors hover:bg-surface-tint"
+      >
+        Mese successivo →
+      </a>
+    </div>
+  </div>
+
+  <p class="mt-3 text-sm text-muted">
+    Occupazione massima del mese: <strong class="text-body tabular-nums">{peak}</strong> cani in un giorno.
+    Contano solo i soggiorni confermati.
+  </p>
+
+  <div class="mt-8 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-4 sm:p-6">
+    <div class="grid grid-cols-7 gap-1.5">
+      {
+        ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'].map((label) => (
+          <p class="m-0 pb-1 text-center text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
+        ))
+      }
+      {leadingPad.map(() => <span aria-hidden="true"></span>)}
+      {
+        cells.map((cell) => (
+          <div class:list={['flex min-h-20 flex-col rounded-lg border p-2', cell.tone, cell.isToday && 'ring-2 ring-primary']}>
+            <p class="m-0 flex items-center justify-between text-sm font-medium tabular-nums">
+              {cell.number}
+              {cell.isHighSeason && (
+                <span class="h-1.5 w-1.5 rounded-full bg-accent" title="Alta stagione" aria-label="Alta stagione" />
+              )}
+            </p>
+            <p class="m-0 mt-auto text-xs tabular-nums text-muted">{cell.occupancyLabel}</p>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+
+  <h2 class="mt-12 font-display text-xl font-semibold">Soggiorni del mese</h2>
+
+  {
+    stays.length === 0 ? (
+      <p class="mt-5 rounded-[var(--radius-card)] border border-dashed border-edge-strong p-10 text-center text-muted">
+        Nessun soggiorno in questo mese.
+      </p>
+    ) : (
+      <div class="mt-5 overflow-x-auto rounded-[var(--radius-card)] border border-edge bg-surface-raised">
+        <table class="w-full min-w-[42rem] border-collapse text-left text-sm">
+          <caption class="sr-only">Soggiorni che si sovrappongono al mese visualizzato</caption>
+          <thead>
+            <tr class="border-b border-edge">
+              <th scope="col" class="p-4 text-xs font-semibold uppercase tracking-wide text-muted">Rif.</th>
+              <th scope="col" class="p-4 text-xs font-semibold uppercase tracking-wide text-muted">Cane</th>
+              <th scope="col" class="p-4 text-xs font-semibold uppercase tracking-wide text-muted">Servizio</th>
+              <th scope="col" class="p-4 text-xs font-semibold uppercase tracking-wide text-muted">Date</th>
+              <th scope="col" class="p-4 text-xs font-semibold uppercase tracking-wide text-muted">Stato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stays.map(({ booking, dog, owner }) => (
+              <tr class="border-b border-edge last:border-0">
+                <td class="p-4 font-mono text-xs">{booking.reference}</td>
+                <td class="p-4">
+                  <span class="font-medium">{dog.name}</span>
+                  <span class="block text-xs text-muted">
+                    {owner.firstName} {owner.lastName} · {owner.phone}
+                  </span>
+                </td>
+                <td class="p-4">{services[booking.service].name}</td>
+                <td class="p-4 tabular-nums">
+                  {formatDayShortIt(booking.startDay)} → {formatDayShortIt(booking.endDay)}
+                </td>
+                <td class="p-4">
+                  <span
+                    class:list={[
+                      'rounded-full px-2.5 py-0.5 text-xs font-medium',
+                      booking.status === 'confirmed'
+                        ? 'bg-surface-tint text-ok'
+                        : 'bg-accent-100 text-accent-800',
+                    ]}
+                  >
+                    {booking.status === 'confirmed' ? 'confermato' : 'in attesa'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+</Admin>

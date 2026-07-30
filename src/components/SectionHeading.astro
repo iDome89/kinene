@@ -1,0 +1,23 @@
+---
+interface Props {
+  eyebrow?: string;
+  title: string;
+  lead?: string;
+  id?: string;
+  align?: 'start' | 'center';
+  level?: 2 | 3;
+}
+
+const { eyebrow, title, lead, id, align = 'start', level = 2 } = Astro.props;
+const Tag = `h${level}` as 'h2' | 'h3';
+---
+
+<div class={`max-w-2xl ${align === 'center' ? 'mx-auto text-center' : ''}`}>
+  {
+    eyebrow && (
+      <p class="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-accent">{eyebrow}</p>
+    )
+  }
+  <Tag id={id} class="text-[clamp(1.75rem,1.2rem+2vw,2.6rem)] font-semibold">{title}</Tag>
+  {lead && <p class="mt-4 text-[1.05rem] leading-relaxed text-muted">{lead}</p>}
+</div>

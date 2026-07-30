@@ -1,0 +1,182 @@
+---
+import Base from '@/layouts/Base.astro';
+import PageHero from '@/components/PageHero.astro';
+import Section from '@/components/Section.astro';
+import SectionHeading from '@/components/SectionHeading.astro';
+import Button from '@/components/Button.astro';
+import Icon from '@/components/Icon.astro';
+import Callout from '@/components/Callout.astro';
+import { policy, serviceList } from '@/config/business';
+import { formatEuro } from '@/lib/pricing';
+
+const description =
+  'Tariffe di pensione, asilo diurno e asilo notturno per cani a Guiglia (MO). Condizioni di pagamento, disdetta e alta stagione, senza costi nascosti.';
+
+const breadcrumb = [
+  { name: 'Home', href: '/' },
+  { name: 'Prezzi', href: '/prezzi' },
+];
+
+const latePercent = policy.lateCancellationFeeRatio * 100;
+---
+
+<Base title="Prezzi e condizioni" description={description} breadcrumb={breadcrumb}>
+  <PageHero
+    eyebrow="Tariffe"
+    title="Prezzi e condizioni, senza costi nascosti"
+    lead="Il saldo si effettua il giorno del check-in. Non chiediamo anticipi online e non applichiamo commissioni di prenotazione."
+    breadcrumb={breadcrumb}
+  />
+
+  <Section labelledby="tariffe">
+    <SectionHeading id="tariffe" eyebrow="Listino" title="Tariffe per servizio" />
+
+    <div class="mt-10 overflow-x-auto">
+      <table class="w-full min-w-[42rem] border-collapse text-left">
+        <caption class="sr-only">Tariffe, orari di consegna e ritiro e durata massima per ciascun servizio</caption>
+        <thead>
+          <tr class="border-b border-edge-strong">
+            <th scope="col" class="py-4 pr-6 font-sans text-xs font-semibold uppercase tracking-[0.16em] text-muted">Servizio</th>
+            <th scope="col" class="py-4 pr-6 font-sans text-xs font-semibold uppercase tracking-[0.16em] text-muted">Consegna</th>
+            <th scope="col" class="py-4 pr-6 font-sans text-xs font-semibold uppercase tracking-[0.16em] text-muted">Ritiro</th>
+            <th scope="col" class="py-4 pr-6 font-sans text-xs font-semibold uppercase tracking-[0.16em] text-muted">Durata max</th>
+            <th scope="col" class="py-4 text-right font-sans text-xs font-semibold uppercase tracking-[0.16em] text-muted">Tariffa</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            serviceList.map((service) => (
+              <tr class="border-b border-edge">
+                <th scope="row" class="py-5 pr-6 font-sans font-semibold">
+                  <a href={`/servizi/${service.id}`} class="no-underline hover:underline">
+                    {service.name}
+                  </a>
+                </th>
+                <td class="py-5 pr-6 tabular-nums text-muted">
+                  {service.checkInFrom}—{service.checkInTo}
+                </td>
+                <td class="py-5 pr-6 tabular-nums text-muted">
+                  {service.checkOutFrom}—{service.checkOutTo}
+                  {service.checkOutNextDay && <span class="block text-xs">giorno successivo</span>}
+                </td>
+                <td class="py-5 pr-6 tabular-nums text-muted">
+                  {service.maxNights === null ? '—' : `${service.maxNights} ${service.maxNights === 1 ? 'notte' : 'notti'}`}
+                </td>
+                <td class="py-5 text-right font-display text-lg font-semibold tabular-nums">
+                  {formatEuro(service.priceCents)}
+                  <span class="block font-sans text-xs font-normal text-muted">al {service.priceUnit}</span>
+                </td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mt-8 grid gap-4 md:grid-cols-2">
+      <Callout tone="warning" title="Ritardi">
+        Oltre l’orario di chiusura o di ritiro concordato viene applicata in automatico la tariffa per la
+        notte o il giorno successivo. Non è una penale: è il servizio che stai effettivamente usando.
+      </Callout>
+      <Callout tone="info" title="Flessibilità">
+        Eventuali deroghe agli orari vanno concordate con almeno {policy.scheduleChangeNoticeHours} ore di
+        anticipo e non possono superare le 24 ore dal giorno di ritiro stabilito.
+      </Callout>
+    </div>
+  </Section>
+
+  <Section tone="sunken" labelledby="pagamento">
+    <div class="grid gap-12 lg:grid-cols-2">
+      <div>
+        <SectionHeading id="pagamento" eyebrow="Pagamento" title="Quando e come si paga" />
+        <ul class="mt-7 flex list-none flex-col gap-4 p-0">
+          <li class="flex items-start gap-3">
+            <Icon name="euro" size={19} class="mt-0.5 shrink-0 text-primary" />
+            <div>
+              <p class="m-0 font-medium">Saldo il giorno del check-in</p>
+              <p class="m-0 mt-1 text-sm leading-relaxed text-muted">
+                Nessun anticipo, nessun pagamento online. Il soggiorno si salda alla consegna del cane.
+              </p>
+            </div>
+          </li>
+          <li class="flex items-start gap-3">
+            <Icon name="calendar" size={19} class="mt-0.5 shrink-0 text-primary" />
+            <div>
+              <p class="m-0 font-medium">La prenotazione è una richiesta</p>
+              <p class="m-0 mt-1 text-sm leading-relaxed text-muted">
+                Invii le date, noi verifichiamo e confermiamo. Nulla è dovuto finché non ricevi la conferma.
+              </p>
+            </div>
+          </li>
+          <li class="flex items-start gap-3">
+            <Icon name="shield" size={19} class="mt-0.5 shrink-0 text-primary" />
+            <div>
+              <p class="m-0 font-medium">Il test d’ingresso è gratuito</p>
+              <p class="m-0 mt-1 text-sm leading-relaxed text-muted">
+                Il primo incontro conoscitivo non si paga, ed è obbligatorio prima del primo soggiorno.
+              </p>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <SectionHeading eyebrow="Disdette" title="Cosa succede se annulli" level={2} />
+
+        <div class="mt-7 flex flex-col gap-px overflow-hidden rounded-[var(--radius-card)] border border-edge bg-edge">
+          <div class="flex items-center justify-between gap-4 bg-surface-raised p-5">
+            <div>
+              <p class="m-0 font-medium">Almeno {policy.standardCancellationDays} giorni prima</p>
+              <p class="m-0 mt-1 text-sm text-muted">Periodo ordinario</p>
+            </div>
+            <p class="m-0 shrink-0 font-display text-lg font-semibold text-ok">Gratuita</p>
+          </div>
+
+          <div class="flex items-center justify-between gap-4 bg-surface-raised p-5">
+            <div>
+              <p class="m-0 font-medium">Meno di {policy.standardCancellationDays} giorni prima</p>
+              <p class="m-0 mt-1 text-sm text-muted">Periodo ordinario</p>
+            </div>
+            <p class="m-0 shrink-0 font-display text-lg font-semibold text-danger tabular-nums">
+              Penale {latePercent}%
+            </p>
+          </div>
+
+          <div class="flex items-center justify-between gap-4 bg-surface-raised p-5">
+            <div>
+              <p class="m-0 font-medium">Alta stagione</p>
+              <p class="m-0 mt-1 text-sm text-muted">Natale, agosto e Pasqua</p>
+            </div>
+            <p class="m-0 shrink-0 text-right font-display text-lg font-semibold tabular-nums">
+              {policy.highSeasonCancellationDays} giorni
+              <span class="block font-sans text-xs font-normal text-muted">di preavviso richiesto</span>
+            </p>
+          </div>
+        </div>
+
+        <Callout tone="warning" title="Allontanamento per motivi di sicurezza" class="mt-6">
+          Se il cane manifesta comportamenti aggressivi o gravemente incontrollabili durante il soggiorno, la
+          quota versata non viene rimborsata, si aggiunge una penale fissa di
+          {' '}{formatEuro(policy.forcedRemovalPenaltyCents)} per la gestione dell’emergenza, oltre al risarcimento
+          di eventuali danni. Il cane va ritirato entro {policy.forcedRemovalCollectionHours} ore dalla
+          comunicazione.
+        </Callout>
+      </div>
+    </div>
+  </Section>
+
+  <Section labelledby="prenota-cta">
+    <div class="flex flex-col items-start justify-between gap-8 rounded-[var(--radius-card)] border border-edge bg-surface-tint p-9 md:flex-row md:items-center">
+      <div>
+        <h2 id="prenota-cta" class="font-display text-2xl font-semibold">Verifica le date che ti servono</h2>
+        <p class="m-0 mt-2 max-w-xl text-sm leading-relaxed text-muted">
+          Il calendario mostra la disponibilità reale. Invii la richiesta e ti confermiamo noi.
+        </p>
+      </div>
+      <Button href="/prenota" variant="accent" size="lg" class="shrink-0">
+        Verifica disponibilità
+        <Icon name="arrow-right" size={18} />
+      </Button>
+    </div>
+  </Section>
+</Base>

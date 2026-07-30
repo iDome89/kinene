@@ -1,0 +1,73 @@
+---
+import '@/styles/global.css';
+import Logo from '@/components/Logo.astro';
+
+interface Props {
+  title: string;
+  active?: 'richieste' | 'calendario' | 'chiusure';
+}
+
+const { title, active } = Astro.props;
+
+const nav = [
+  { key: 'richieste', href: '/admin', label: 'Richieste' },
+  { key: 'calendario', href: '/admin/calendario', label: 'Calendario' },
+  { key: 'chiusure', href: '/admin/chiusure', label: 'Chiusure e capienza' },
+] as const;
+---
+
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{title} · Kinene admin</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body class="flex min-h-dvh flex-col bg-surface-sunken">
+    <header class="border-b border-edge bg-surface-raised">
+      <div class="wrap flex flex-wrap items-center justify-between gap-4 py-3">
+        <div class="flex items-center gap-3">
+          <Logo size={40} priority />
+          <span class="font-display text-lg font-semibold">Gestione</span>
+        </div>
+
+        <nav aria-label="Sezioni" class="flex flex-wrap gap-1">
+          {
+            nav.map((item) => (
+              <a
+                href={item.href}
+                aria-current={active === item.key ? 'page' : undefined}
+                class:list={[
+                  'rounded-full px-4 py-2 text-sm no-underline transition-colors',
+                  active === item.key
+                    ? 'bg-primary font-medium text-on-primary'
+                    : 'text-muted hover:bg-surface-tint hover:text-body',
+                ]}
+              >
+                {item.label}
+              </a>
+            ))
+          }
+        </nav>
+
+        <div class="flex items-center gap-3">
+          <a href="/" class="text-sm text-muted no-underline hover:underline">Vedi il sito</a>
+          <form method="POST" action="/admin/logout">
+            <button
+              type="submit"
+              class="min-h-11 rounded-full border border-edge-strong px-4 text-sm transition-colors hover:bg-surface-tint"
+            >
+              Esci
+            </button>
+          </form>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap flex-1 py-10">
+      <slot />
+    </main>
+  </body>
+</html>

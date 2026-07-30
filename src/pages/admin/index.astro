@@ -1,0 +1,334 @@
+---
+import Admin from '@/layouts/Admin.astro';
+import Icon from '@/components/Icon.astro';
+import { db } from '@/db/client';
+import { bookings, dogs } from '@/db/schema';
+import { listBookings, loadOccupancy } from '@/db/queries';
+import { eq } from 'drizzle-orm';
+import { spanIsAvailable } from '@/lib/availability';
+import { formatDayIt, formatDayShortIt, todayInBusinessTimezone } from '@/lib/dates';
+import { formatEuro } from '@/lib/pricing';
+import { ageInMonthsAtCheckIn, cancellationNoticeDays } from '@/lib/rules';
+import { isHighSeason } from '@/lib/season';
+import { services } from '@/config/business';
+
+export const prerender = false;
+
+let flash: { tone: 'ok' | 'error'; message: string } | null = null;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const id = Number(form.get('id'));
+  const action = String(form.get('action') ?? '');
+  const staffNote = String(form.get('staffNote') ?? '').trim() || null;
+  const now = Date.now();
+
+  const [target] = await db.select().from(bookings).where(eq(bookings.id, id)).limit(1);
+
+  if (!target) {
+    flash = { tone: 'error', message: 'Richiesta non trovata.' };
+  } else if (action === 'confirm') {
+    const today = todayInBusinessTimezone();
+    const grid = await loadOccupancy(today, Math.max(1, target.occupiesTo - today + 1));
+
+    if (!spanIsAvailable(grid, { from: target.occupiesFrom, toExclusive: target.occupiesTo })) {
+      flash = {
+        tone: 'error',
+        message: `Non c’è più capienza per ${target.reference}. Un’altra prenotazione ha occupato quelle date.`,
+      };
+    } else {
+      await db
+        .update(bookings)
+        .set({ status: 'confirmed', decidedAt: now, staffNote })
+        .where(eq(bookings.id, id));
+      flash = { tone: 'ok', message: `${target.reference} confermata.` };
+    }
+  } else if (action === 'reject') {
+    await db.update(bookings).set({ status: 'rejected', decidedAt: now, staffNote }).where(eq(bookings.id, id));
+    flash = { tone: 'ok', message: `${target.reference} rifiutata.` };
+  } else if (action === 'cancel') {
+    await db.update(bookings).set({ status: 'cancelled', decidedAt: now, staffNote }).where(eq(bookings.id, id));
+    flash = { tone: 'ok', message: `${target.reference} annullata.` };
+  } else if (action === 'intake-passed' || action === 'intake-failed') {
+    await db
+      .update(dogs)
+      .set({
+        intakeTestStatus: action === 'intake-passed' ? 'passed' : 'failed',
+        intakeTestDay: todayInBusinessTimezone(),
+      })
+      .where(eq(dogs.id, Number(form.get('dogId'))));
+    flash = { tone: 'ok', message: 'Esito del test d’ingresso aggiornato.' };
+  }
+}
+
+const today = todayInBusinessTimezone();
+const rows = await listBookings(['requested', 'confirmed']);
+const pending = rows.filter((row) => row.booking.status === 'requested');
+const confirmed = rows
+  .filter((row) => row.booking.status === 'confirmed' && row.booking.endDay >= today)
+  .slice(0, 12);
+
+const STATUS_STYLE: Record<string, string> = {
+  requested: 'bg-accent-100 text-accent-800',
+  confirmed: 'bg-surface-tint text-ok',
+};
+---
+
+<Admin title="Richieste" active="richieste">
+  {
+    flash && (
+      <p
+        role="status"
+        class:list={[
+          'mb-8 rounded-[var(--radius-card)] border p-4 text-sm',
+          flash.tone === 'ok'
+            ? 'border-ok/35 bg-surface-tint text-ok'
+            : 'border-danger/35 bg-danger-surface text-danger',
+        ]}
+      >
+        {flash.message}
+      </p>
+    )
+  }
+
+  <div class="mb-10 grid gap-4 sm:grid-cols-3">
+    <div class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
+      <p class="m-0 text-xs uppercase tracking-[0.16em] text-muted">Da evadere</p>
+      <p class="m-0 mt-2 font-display text-3xl font-semibold tabular-nums">{pending.length}</p>
+    </div>
+    <div class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
+      <p class="m-0 text-xs uppercase tracking-[0.16em] text-muted">Confermate in arrivo</p>
+      <p class="m-0 mt-2 font-display text-3xl font-semibold tabular-nums">{confirmed.length}</p>
+    </div>
+    <div class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
+      <p class="m-0 text-xs uppercase tracking-[0.16em] text-muted">Oggi</p>
+      <p class="m-0 mt-2 font-display text-3xl font-semibold">{formatDayShortIt(today)}</p>
+    </div>
+  </div>
+
+  <h1 class="font-display text-2xl font-semibold">Richieste da evadere</h1>
+
+  {
+    pending.length === 0 ? (
+      <p class="mt-6 rounded-[var(--radius-card)] border border-dashed border-edge-strong p-10 text-center text-muted">
+        Nessuna richiesta in attesa.
+      </p>
+    ) : (
+      <ul class="mt-6 flex list-none flex-col gap-5 p-0">
+        {pending.map(({ booking, dog, owner }) => {
+          const ageMonths = ageInMonthsAtCheckIn(dog.birthDay, booking.startDay);
+          const notice = cancellationNoticeDays(booking.startDay, booking.endDay);
+          const highSeason = isHighSeason(booking.startDay);
+          const intakeOk = dog.intakeTestStatus === 'passed';
+
+          return (
+            <li class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
+              <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p class="m-0 flex flex-wrap items-center gap-3">
+                    <span class="font-mono text-sm font-semibold">{booking.reference}</span>
+                    <span class={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLE[booking.status]}`}>
+                      in attesa
+                    </span>
+                    {highSeason && (
+                      <span class="rounded-full bg-accent-100 px-2.5 py-0.5 text-xs font-medium text-accent-800">
+                        alta stagione · {notice} gg preavviso
+                      </span>
+                    )}
+                  </p>
+                  <p class="m-0 mt-2 font-display text-xl font-semibold">
+                    {services[booking.service].name} · {formatDayIt(booking.startDay)} —{' '}
+                    {formatDayIt(booking.endDay)}
+                  </p>
+                </div>
+                <p class="m-0 font-display text-2xl font-semibold tabular-nums">
+                  {formatEuro(booking.priceCents)}
+                </p>
+              </div>
+
+              {!intakeOk && (
+                <p class="m-0 mt-4 flex items-start gap-2.5 rounded-lg border border-danger/35 bg-danger-surface p-3 text-sm text-danger">
+                  <Icon name="alert" size={17} class="mt-0.5 shrink-0" />
+                  Test d’ingresso non superato ({dog.intakeTestStatus === 'failed' ? 'respinto' : 'non ancora svolto'}).
+                  Il soggiorno non può iniziare finché non è registrato come superato.
+                </p>
+              )}
+
+              <dl class="mt-5 grid gap-x-8 gap-y-3 border-t border-edge pt-5 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <dt class="text-xs uppercase tracking-wide text-muted">Cane</dt>
+                  <dd class="m-0 mt-0.5 font-medium">
+                    {dog.name}
+                    {dog.breed && <span class="font-normal text-muted"> · {dog.breed}</span>}
+                  </dd>
+                  <dd class="m-0 text-xs text-muted">
+                    {dog.sex === 'F' ? 'Femmina' : 'Maschio'} · {Math.floor(ageMonths / 12)} anni {ageMonths % 12} mesi
+                  </dd>
+                </div>
+                <div>
+                  <dt class="text-xs uppercase tracking-wide text-muted">Microchip</dt>
+                  <dd class="m-0 mt-0.5 font-mono text-xs">{dog.microchip}</dd>
+                  {dog.insurancePolicy && <dd class="m-0 text-xs text-muted">RC: {dog.insurancePolicy}</dd>}
+                </div>
+                <div>
+                  <dt class="text-xs uppercase tracking-wide text-muted">Proprietario</dt>
+                  <dd class="m-0 mt-0.5 font-medium">
+                    {owner.firstName} {owner.lastName}
+                  </dd>
+                  <dd class="m-0 text-xs">
+                    <a href={`tel:${owner.phone}`} class="text-accent">{owner.phone}</a>
+                  </dd>
+                  <dd class="m-0 text-xs">
+                    <a href={`mailto:${owner.email}`} class="text-accent">{owner.email}</a>
+                  </dd>
+                </div>
+                <div>
+                  <dt class="text-xs uppercase tracking-wide text-muted">Veterinario</dt>
+                  <dd class="m-0 mt-0.5">{dog.vetName ?? '—'}</dd>
+                  {dog.vetPhone && <dd class="m-0 text-xs text-muted">{dog.vetPhone}</dd>}
+                </div>
+              </dl>
+
+              {(dog.foodNotes || dog.allergies || dog.medications || booking.notes) && (
+                <dl class="mt-4 grid gap-3 border-t border-edge pt-4 text-sm sm:grid-cols-2">
+                  {dog.foodNotes && (
+                    <div>
+                      <dt class="text-xs uppercase tracking-wide text-muted">Alimentazione</dt>
+                      <dd class="m-0 mt-0.5">{dog.foodNotes}</dd>
+                    </div>
+                  )}
+                  {dog.allergies && (
+                    <div>
+                      <dt class="text-xs uppercase tracking-wide text-muted">Allergie</dt>
+                      <dd class="m-0 mt-0.5">{dog.allergies}</dd>
+                    </div>
+                  )}
+                  {dog.medications && (
+                    <div>
+                      <dt class="text-xs uppercase tracking-wide text-muted">Terapie</dt>
+                      <dd class="m-0 mt-0.5">{dog.medications}</dd>
+                    </div>
+                  )}
+                  {booking.notes && (
+                    <div>
+                      <dt class="text-xs uppercase tracking-wide text-muted">Note del proprietario</dt>
+                      <dd class="m-0 mt-0.5">{booking.notes}</dd>
+                    </div>
+                  )}
+                </dl>
+              )}
+
+              <form method="POST" class="mt-6 flex flex-wrap items-end gap-3 border-t border-edge pt-5">
+                <input type="hidden" name="id" value={booking.id} />
+                <input type="hidden" name="dogId" value={dog.id} />
+
+                <div class="min-w-56 flex-1">
+                  <label for={`note-${booking.id}`} class="block text-xs font-medium text-muted">
+                    Nota interna
+                  </label>
+                  <input
+                    id={`note-${booking.id}`}
+                    name="staffNote"
+                    type="text"
+                    class="mt-1 block min-h-11 w-full rounded-lg border border-edge-strong bg-surface px-3 outline-none focus:border-accent"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  name="action"
+                  value="confirm"
+                  class="min-h-11 rounded-full bg-primary px-5 text-sm font-medium text-on-primary transition-colors hover:bg-primary-hover"
+                >
+                  Conferma
+                </button>
+                <button
+                  type="submit"
+                  name="action"
+                  value="reject"
+                  class="min-h-11 rounded-full border border-danger/40 px-5 text-sm font-medium text-danger transition-colors hover:bg-danger-surface"
+                >
+                  Rifiuta
+                </button>
+                {!intakeOk && (
+                  <button
+                    type="submit"
+                    name="action"
+                    value="intake-passed"
+                    class="min-h-11 rounded-full border border-edge-strong px-5 text-sm transition-colors hover:bg-surface-tint"
+                  >
+                    Segna test superato
+                  </button>
+                )}
+              </form>
+            </li>
+          );
+        })}
+      </ul>
+    )
+  }
+
+  <h2 class="mt-16 font-display text-2xl font-semibold">Prossime confermate</h2>
+
+  {
+    confirmed.length === 0 ? (
+      <p class="mt-6 rounded-[var(--radius-card)] border border-dashed border-edge-strong p-10 text-center text-muted">
+        Nessun soggiorno confermato in arrivo.
+      </p>
+    ) : (
+      <div class="mt-6 overflow-x-auto rounded-[var(--radius-card)] border border-edge bg-surface-raised">
+        <table class="w-full min-w-[46rem] border-collapse text-left text-sm">
+          <caption class="sr-only">Soggiorni confermati in arrivo</caption>
+          <thead>
+            <tr class="border-b border-edge">
+              <th scope="col" class="p-4 text-xs font-semibold uppercase tracking-wide text-muted">Rif.</th>
+              <th scope="col" class="p-4 text-xs font-semibold uppercase tracking-wide text-muted">Cane</th>
+              <th scope="col" class="p-4 text-xs font-semibold uppercase tracking-wide text-muted">Servizio</th>
+              <th scope="col" class="p-4 text-xs font-semibold uppercase tracking-wide text-muted">Date</th>
+              <th scope="col" class="p-4 text-xs font-semibold uppercase tracking-wide text-muted">Test</th>
+              <th scope="col" class="p-4 text-right text-xs font-semibold uppercase tracking-wide text-muted">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {confirmed.map(({ booking, dog, owner }) => (
+              <tr class="border-b border-edge last:border-0">
+                <td class="p-4 font-mono text-xs">{booking.reference}</td>
+                <td class="p-4">
+                  <span class="font-medium">{dog.name}</span>
+                  <span class="block text-xs text-muted">
+                    {owner.firstName} {owner.lastName}
+                  </span>
+                </td>
+                <td class="p-4">{services[booking.service].name}</td>
+                <td class="p-4 tabular-nums">
+                  {formatDayShortIt(booking.startDay)} → {formatDayShortIt(booking.endDay)}
+                </td>
+                <td class="p-4">
+                  {dog.intakeTestStatus === 'passed' ? (
+                    <span class="text-ok">superato</span>
+                  ) : (
+                    <span class="text-danger">{dog.intakeTestStatus === 'failed' ? 'respinto' : 'da fare'}</span>
+                  )}
+                </td>
+                <td class="p-4 text-right">
+                  <form method="POST" class="inline">
+                    <input type="hidden" name="id" value={booking.id} />
+                    <input type="hidden" name="dogId" value={dog.id} />
+                    <button
+                      type="submit"
+                      name="action"
+                      value="cancel"
+                      class="min-h-11 rounded-full border border-edge-strong px-4 text-xs transition-colors hover:bg-surface-tint"
+                    >
+                      Annulla
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+</Admin>

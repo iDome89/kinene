@@ -1,0 +1,149 @@
+---
+import Base from '@/layouts/Base.astro';
+import PageHero from '@/components/PageHero.astro';
+import Section from '@/components/Section.astro';
+import SectionHeading from '@/components/SectionHeading.astro';
+import Figure from '@/components/Figure.astro';
+import Button from '@/components/Button.astro';
+import Icon from '@/components/Icon.astro';
+import Callout from '@/components/Callout.astro';
+import { business } from '@/config/business';
+import { telLink, whatsappLink } from '@/lib/links';
+
+const description =
+  'Allevamento di Cane Corso a Guiglia (MO). Selezione, socializzazione dei cuccioli e supporto continuo alle famiglie. Visite alla struttura su appuntamento.';
+
+const breadcrumb = [
+  { name: 'Home', href: '/' },
+  { name: 'Allevamento', href: '/allevamento' },
+];
+
+const included = [
+  { icon: 'shield' as const, text: 'Microchip e iscrizione all’anagrafe canina' },
+  { icon: 'syringe' as const, text: 'Vaccinazioni e sverminazioni in regola per l’età' },
+  { icon: 'file' as const, text: 'Libretto sanitario e certificato veterinario' },
+  { icon: 'users' as const, text: 'Socializzazione precoce con persone, rumori e altri cani' },
+  { icon: 'heart' as const, text: 'Supporto continuo alla famiglia dopo la consegna' },
+];
+
+const approach = [
+  {
+    title: 'Selezione, non produzione',
+    body: 'Il Cane Corso è un molossoide da guardia: struttura importante, carattere importante. Selezioniamo per equilibrio e salute, non per estetica estrema o per numero di cucciolate.',
+  },
+  {
+    title: 'I cuccioli crescono in casa',
+    body: 'Le prime settimane determinano come un cane starà al mondo per il resto della vita. I nostri cuccioli sentono rumori domestici, incontrano persone diverse e imparano a gestire la frustrazione prima di partire.',
+  },
+  {
+    title: 'Scegliamo noi la famiglia',
+    body: 'Facciamo domande, e a volte diciamo di no. Un Cane Corso in mani sbagliate è un problema per tutti, a partire dal cane. Preferiamo aspettare la famiglia giusta.',
+  },
+  {
+    title: 'Non spariamo dopo la consegna',
+    body: 'Restiamo raggiungibili per dubbi su alimentazione, gestione ed educazione. Chi prende un nostro cucciolo non resta solo al primo problema.',
+  },
+];
+---
+
+<Base title="Allevamento Cane Corso" description={description} breadcrumb={breadcrumb}>
+  <PageHero
+    eyebrow="Allevamento"
+    title="Cane Corso, selezionato con criterio"
+    lead="Kinene nasce come allevamento di Cane Corso sull’Appennino modenese. È da qui che viene tutto il resto: la conoscenza della razza, la lettura del comportamento, la gestione dei gruppi."
+    breadcrumb={breadcrumb}
+  >
+    <div class="mt-8 flex flex-wrap gap-3">
+      <Button
+        href={whatsappLink('Ciao Kinene, vorrei informazioni sull’allevamento e sulle cucciolate.')}
+        variant="accent"
+        size="lg"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <Icon name="whatsapp" size={18} />
+        Chiedi delle cucciolate
+      </Button>
+      <Button href={telLink()} variant="outline" size="lg">
+        <Icon name="phone" size={18} />
+        {business.contact.phoneDisplay}
+      </Button>
+    </div>
+  </PageHero>
+
+  <Section labelledby="approccio">
+    <SectionHeading
+      id="approccio"
+      eyebrow="Il nostro approccio"
+      title="Come alleviamo"
+      lead="Quattro scelte che determinano tutto il resto."
+    />
+
+    <ul class="mt-12 grid list-none grid-cols-1 gap-6 p-0 md:grid-cols-2">
+      {
+        approach.map((item, index) => (
+          <li class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-7">
+            <span class="font-display text-3xl font-semibold text-brand-400 tabular-nums">
+              {String(index + 1).padStart(2, '0')}
+            </span>
+            <h3 class="mt-4 font-sans text-base font-semibold">{item.title}</h3>
+            <p class="mt-2 text-sm leading-relaxed text-muted">{item.body}</p>
+          </li>
+        ))
+      }
+    </ul>
+  </Section>
+
+  <Section tone="sunken" labelledby="cuccioli">
+    <div class="grid items-start gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+      <div>
+        <SectionHeading
+          id="cuccioli"
+          eyebrow="Cucciolate"
+          title="Cosa comprende un cucciolo Kinene"
+          lead="Nessun cucciolo lascia la struttura prima dei 60 giorni."
+        />
+
+        <ul class="mt-8 flex list-none flex-col gap-3 p-0">
+          {
+            included.map((item) => (
+              <li class="flex items-start gap-3 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-4">
+                <Icon name={item.icon} size={18} class="mt-0.5 shrink-0 text-primary" />
+                <span class="text-sm">{item.text}</span>
+              </li>
+            ))
+          }
+        </ul>
+
+        <Callout tone="info" title="Disponibilità" class="mt-8">
+          Le cucciolate non sono continue e non teniamo lista d’attesa aperta tutto l’anno. Scrivici per sapere
+          se è previsto un accoppiamento e in che periodo.
+        </Callout>
+      </div>
+
+      <div class="flex flex-col gap-6">
+        <Figure caption="Foto dei riproduttori" icon="paw" ratio="4 / 3" />
+        <div class="grid grid-cols-2 gap-6">
+          <Figure caption="Cuccioli" icon="heart" ratio="1 / 1" />
+          <Figure caption="Crescita in casa" icon="users" ratio="1 / 1" />
+        </div>
+      </div>
+    </div>
+  </Section>
+
+  <Section labelledby="visita">
+    <div class="flex flex-col items-start justify-between gap-8 rounded-[var(--radius-card)] border border-edge bg-surface-tint p-9 md:flex-row md:items-center">
+      <div>
+        <h2 id="visita" class="font-display text-2xl font-semibold">Vieni a conoscerli</h2>
+        <p class="m-0 mt-2 max-w-xl text-sm leading-relaxed text-muted">
+          Le visite alla struttura si fissano su appuntamento. Nessuna decisione seria su un Cane Corso si prende
+          guardando delle foto.
+        </p>
+      </div>
+      <Button href="/contatti" variant="accent" size="lg" class="shrink-0">
+        Fissa una visita
+        <Icon name="arrow-right" size={18} />
+      </Button>
+    </div>
+  </Section>
+</Base>

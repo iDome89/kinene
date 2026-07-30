@@ -6,7 +6,7 @@ import Button from '@/components/Button.astro';
 import Icon from '@/components/Icon.astro';
 import Callout from '@/components/Callout.astro';
 import Stars from '@/components/Stars.astro';
-import ReviewMarquee from '@/components/ReviewMarquee.astro';
+import ReviewCarousel from '@/components/ReviewCarousel.astro';
 import { db } from '@/db/client';
 import { reviews } from '@/db/schema';
 import { consumeRateLimit, listPublishedReviews } from '@/db/queries';
@@ -91,10 +91,6 @@ if (Astro.request.method === 'POST') {
 const published = await listPublishedReviews();
 const summary = summarise(published.map((review) => review.rating));
 
-const half = Math.ceil(published.length / 2);
-const topRow = published.slice(0, half);
-const bottomRow = published.slice(half);
-
 const errorFor = (field: string) => violations.find((violation) => violation.field === field)?.message;
 const value = (key: string) => previous[key] ?? '';
 
@@ -160,17 +156,12 @@ const labelClass = 'block text-sm font-medium';
 
   {
     published.length > 0 && (
-      <section class="overflow-hidden py-14" aria-labelledby="tutte-le-recensioni">
+      <Section labelledby="tutte-le-recensioni">
         <h2 id="tutte-le-recensioni" class="sr-only">
           Tutte le recensioni pubblicate
         </h2>
-        <ReviewMarquee reviews={topRow} />
-        {bottomRow.length > 0 && (
-          <div class="mt-5">
-            <ReviewMarquee reviews={bottomRow} reverse />
-          </div>
-        )}
-      </section>
+        <ReviewCarousel reviews={published} />
+      </Section>
     )
   }
 

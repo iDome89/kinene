@@ -120,6 +120,29 @@ export interface MailConfig {
   Notifications must never cost a booking: the request is already committed when
   this runs, so every failure is logged and swallowed.
 */
+async function deliver(messages: readonly Message[], config: MailConfig, reference: string): Promise<void> {
+  if (!config.apiKey || !config.from) {
+    console.warn(
+      `[notify] Resend non configurato: ${reference} salvata ma nessuna email inviata. ` +
+        'Imposta RESEND_API_KEY, MAIL_FROM e NOTIFY_EMAIL.',
+    );
+    return;
+  }
+
+  const results = await Promise.allSettled(
+    messages.map((message) => sendMessage(message, config.apiKey!, config.from!)),
+  );
+
+  results.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      console.error(
+        `[notify] invio a ${messages[index]!.to} fallito per ${reference}:`,
+        result.reason instanceof Error ? result.reason.message : result.reason,
+      );
+    }
+  });
+}
+
 export async function deliverBooking(booking: BookingNotification, config: MailConfig): Promise<void> {
   const staffTo = config.staffTo || business.contact.email;
 
@@ -131,18 +154,9 @@ export async function deliverBooking(booking: BookingNotification, config: MailC
     return;
   }
 
-  const outbound: Message[] = [{ ...staffMessage(booking), to: staffTo }, ownerMessage(booking)];
-
-  const results = await Promise.allSettled(
-    outbound.map((message) => sendMessage(message, config.apiKey!, config.from!)),
+  await deliver(
+    [{ ...staffMessage(booking), to: staffTo }, ownerMessage(booking)],
+    config,
+    booking.reference,
   );
-
-  results.forEach((result, index) => {
-    if (result.status === 'rejected') {
-      console.error(
-        `[notify] invio a ${outbound[index]!.to} fallito per ${booking.reference}:`,
-        result.reason instanceof Error ? result.reason.message : result.reason,
-      );
-    }
-  });
 }

@@ -1,0 +1,244 @@
+---
+import Stars from './Stars.astro';
+import { displayName } from '@/lib/reviews';
+import type { Review } from '@/db/schema';
+
+interface Props {
+  reviews: readonly Review[];
+  intervalMs?: number;
+}
+
+const { reviews, intervalMs = 6000 } = Astro.props;
+---
+
+<div class="carousel" data-carousel data-interval={intervalMs}>
+  <div class="carousel__viewport" data-carousel-viewport tabindex="0" role="group" aria-label="Recensioni">
+    <ul class="carousel__track m-0 flex list-none p-0">
+      {
+        reviews.map((review, index) => (
+          <li class="carousel__slide" data-carousel-slide aria-label={`Recensione ${index + 1} di ${reviews.length}`}>
+            <article class="flex h-full flex-col rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
+              <Stars rating={review.rating} label={`${review.rating} stelle su 5`} />
+
+              <p class="mt-4 flex-1 text-sm leading-relaxed text-body">“{review.body}”</p>
+
+              <p class="m-0 mt-5 border-t border-edge pt-4 text-sm font-medium">
+                {displayName(review.firstName, review.lastName)}
+                {review.dogName && <span class="font-normal text-muted"> · con {review.dogName}</span>}
+              </p>
+
+              {review.reply && (
+                <p class="m-0 mt-3 rounded-lg bg-surface-tint p-3 text-xs leading-relaxed text-muted">
+                  <span class="font-semibold text-body">Risposta di Kinene:</span> {review.reply}
+                </p>
+              )}
+            </article>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+    <button
+      type="button"
+      data-carousel-prev
+      class="flex h-11 w-11 items-center justify-center rounded-full border border-edge-strong transition-colors hover:bg-surface-tint disabled:opacity-40"
+      aria-label="Recensione precedente"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+    </button>
+
+    <button
+      type="button"
+      data-carousel-toggle
+      class="flex h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-edge-strong px-4 text-sm transition-colors hover:bg-surface-tint"
+      aria-label="Metti in pausa lo scorrimento"
+    >
+      <span data-carousel-toggle-icon aria-hidden="true">❙❙</span>
+    </button>
+
+    <ul class="m-0 flex list-none items-center gap-1.5 p-0" data-carousel-dots aria-hidden="true">
+      {reviews.map(() => <li><span class="carousel__dot"></span></li>)}
+    </ul>
+
+    <button
+      type="button"
+      data-carousel-next
+      class="flex h-11 w-11 items-center justify-center rounded-full border border-edge-strong transition-colors hover:bg-surface-tint disabled:opacity-40"
+      aria-label="Recensione successiva"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+    </button>
+  </div>
+
+  <p class="sr-only" aria-live="polite" data-carousel-status></p>
+</div>
+
+<style>
+  /* Scroll-snap does the layout maths, so nothing can spill past the container. */
+  .carousel__viewport {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    scroll-behavior: smooth;
+    /* Room for the focus ring instead of clipping it. */
+    margin: -0.25rem;
+    padding: 0.25rem;
+  }
+
+  .carousel__viewport::-webkit-scrollbar {
+    display: none;
+  }
+
+  .carousel__track {
+    gap: 1.25rem;
+    width: 100%;
+  }
+
+  .carousel__slide {
+    flex: 0 0 100%;
+    scroll-snap-align: start;
+    min-width: 0;
+  }
+
+  @media (min-width: 640px) {
+    .carousel__slide {
+      flex-basis: calc((100% - 1.25rem) / 2);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .carousel__slide {
+      flex-basis: calc((100% - 2.5rem) / 3);
+    }
+  }
+
+  .carousel__dot {
+    display: block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: var(--t-border-strong);
+    transition: background-color 200ms, width 200ms;
+  }
+
+  .carousel__dot[data-active] {
+    width: 1.5rem;
+    background: var(--t-primary);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .carousel__viewport {
+      scroll-behavior: auto;
+    }
+  }
+</style>
+
+<script>
+  for (const root of document.querySelectorAll<HTMLElement>('[data-carousel]')) {
+    const viewport = root.querySelector<HTMLElement>('[data-carousel-viewport]')!;
+    const slides = [...root.querySelectorAll<HTMLElement>('[data-carousel-slide]')];
+    const dots = [...root.querySelectorAll<HTMLElement>('[data-carousel-dots] .carousel__dot')];
+    const prev = root.querySelector<HTMLButtonElement>('[data-carousel-prev]')!;
+    const next = root.querySelector<HTMLButtonElement>('[data-carousel-next]')!;
+    const toggle = root.querySelector<HTMLButtonElement>('[data-carousel-toggle]')!;
+    const toggleIcon = root.querySelector<HTMLElement>('[data-carousel-toggle-icon]')!;
+    const status = root.querySelector<HTMLElement>('[data-carousel-status]')!;
+
+    if (slides.length === 0) continue;
+
+    const interval = Number(root.dataset.interval ?? 6000);
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    let index = 0;
+    let timer: number | undefined;
+    /* Autoplay is opt-out for everyone and off by default when motion is reduced. */
+    let playing = !calm.matches;
+
+    const perView = () => {
+      const slideWidth = slides[0]!.getBoundingClientRect().width;
+      return slideWidth > 0 ? Math.max(1, Math.round(viewport.clientWidth / slideWidth)) : 1;
+    };
+
+    const lastIndex = () => Math.max(0, slides.length - perView());
+
+    const paint = () => {
+      const max = lastIndex();
+      index = Math.min(index, max);
+      dots.forEach((dot, position) => dot.toggleAttribute('data-active', position === index));
+      prev.disabled = !playing && index === 0;
+      next.disabled = !playing && index === max;
+      status.textContent = `Recensione ${index + 1} di ${slides.length}`;
+    };
+
+    const goTo = (target: number) => {
+      const max = lastIndex();
+      index = target < 0 ? max : target > max ? 0 : target;
+      viewport.scrollTo({ left: slides[index]!.offsetLeft - slides[0]!.offsetLeft });
+      paint();
+    };
+
+    const stop = () => {
+      if (timer !== undefined) window.clearInterval(timer);
+      timer = undefined;
+    };
+
+    const start = () => {
+      stop();
+      if (!playing) return;
+      timer = window.setInterval(() => goTo(index + 1), interval);
+    };
+
+    const setPlaying = (value: boolean) => {
+      playing = value;
+      toggleIcon.textContent = value ? '❙❙' : '▶';
+      toggle.setAttribute(
+        'aria-label',
+        value ? 'Metti in pausa lo scorrimento' : 'Riprendi lo scorrimento',
+      );
+      if (value) start();
+      else stop();
+      paint();
+    };
+
+    prev.addEventListener('click', () => goTo(index - 1));
+    next.addEventListener('click', () => goTo(index + 1));
+    toggle.addEventListener('click', () => setPlaying(!playing));
+
+    /* Hovering or tabbing in only suspends the timer; it does not flip the button. */
+    for (const [enter, leave] of [
+      ['pointerenter', 'pointerleave'],
+      ['focusin', 'focusout'],
+    ] as const) {
+      root.addEventListener(enter, stop);
+      root.addEventListener(leave, start);
+    }
+
+    document.addEventListener('visibilitychange', () => (document.hidden ? stop() : start()));
+
+    let settle: number | undefined;
+    viewport.addEventListener('scroll', () => {
+      window.clearTimeout(settle);
+      settle = window.setTimeout(() => {
+        const origin = slides[0]!.offsetLeft;
+        const closest = slides.reduce(
+          (best, slide, position) =>
+            Math.abs(slide.offsetLeft - origin - viewport.scrollLeft) <
+            Math.abs(slides[best]!.offsetLeft - origin - viewport.scrollLeft)
+              ? position
+              : best,
+          0,
+        );
+        index = closest;
+        paint();
+      }, 120);
+    });
+
+    window.addEventListener('resize', paint);
+    calm.addEventListener('change', (event) => setPlaying(!event.matches));
+
+    setPlaying(playing);
+  }
+</script>

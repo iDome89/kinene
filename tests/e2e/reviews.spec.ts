@@ -166,27 +166,86 @@ test.describe('review moderation', () => {
   });
 });
 
-test.describe('marquee', () => {
-  test('duplicated cards are hidden from assistive technology', async ({ page }) => {
+/* The carousel only has somewhere to go once there are more reviews than visible slots. */
+async function publishReviews(page: Page, count: number) {
+  await login(page);
+  for (let index = 0; index < count; index += 1) {
+    await clearRateLimits();
+    await submitReview(page, {
+      body: `Recensione numero ${index + 1} per il carosello, con testo sufficientemente lungo da passare.`,
+      email: `carosello${index}@example.com`,
+      firstName: `Cliente${index}`,
+      lastName: 'Prova',
+    });
+    await expect(page.getByRole('heading', { name: 'Grazie' })).toBeVisible();
+  }
+
+  await page.goto('/admin/recensioni');
+  const pending = page.getByRole('button', { name: 'Pubblica' });
+  for (let remaining = await pending.count(); remaining > 0; remaining -= 1) {
+    await pending.first().click();
+    await expect(page.getByRole('status')).toBeVisible();
+  }
+}
+
+test.describe('carousel', () => {
+  test('never spills past the container width', async ({ page }) => {
     await page.goto('/recensioni');
-    const marquee = page.locator('.marquee').first();
+    const carousel = page.locator('[data-carousel]').first();
+    if ((await carousel.count()) === 0) test.skip(true, 'no published reviews in this run');
 
-    if ((await marquee.count()) === 0) test.skip(true, 'no published reviews in this run');
+    const overflow = await page.evaluate(() => ({
+      doc: document.documentElement.scrollWidth,
+      view: document.documentElement.clientWidth,
+    }));
+    expect(overflow.doc).toBeLessThanOrEqual(overflow.view + 1);
 
-    const real = await page.locator('.marquee__card:not([aria-hidden])').count();
-    const dupes = await page.locator('.marquee__card[aria-hidden="true"]').count();
-    expect(dupes).toBe(real);
+    const fits = await carousel.evaluate((el) => {
+      const wrap = el.closest('.wrap') as HTMLElement;
+      return el.getBoundingClientRect().width <= wrap.getBoundingClientRect().width + 1;
+    });
+    expect(fits).toBe(true);
   });
 
-  test('is a labelled, keyboard-reachable region', async ({ page }) => {
+  test('advances and rewinds with the controls', async ({ page }) => {
+    await publishReviews(page, 5);
+
     await page.goto('/recensioni');
-    const marquee = page.locator('.marquee').first();
+    const carousel = page.locator('[data-carousel]').first();
+    await expect(carousel).toBeVisible();
 
-    if ((await marquee.count()) === 0) test.skip(true, 'no published reviews in this run');
+    await carousel.getByLabel('Metti in pausa lo scorrimento').click();
+    const status = carousel.locator('[data-carousel-status]');
+    const position = async () => Number((await status.textContent())!.match(/Recensione (\d+)/)![1]);
 
-    await expect(marquee).toHaveAttribute('role', 'region');
-    await expect(marquee).toHaveAttribute('aria-label', /recensioni/i);
-    await marquee.focus();
-    await expect(marquee).toBeFocused();
+    await expect(status).toHaveText(/^Recensione 1 di \d+$/);
+
+    await carousel.getByLabel('Recensione successiva').click();
+    await expect(status).toHaveText(/^Recensione 2 di \d+$/);
+    expect(await position()).toBe(2);
+
+    await carousel.getByLabel('Recensione precedente').click();
+    await expect(status).toHaveText(/^Recensione 1 di \d+$/);
+  });
+
+  test('can be paused and resumed, as auto-updating content must be', async ({ page }) => {
+    await page.goto('/recensioni');
+    const carousel = page.locator('[data-carousel]').first();
+    if ((await carousel.count()) === 0) test.skip(true, 'no published reviews in this run');
+
+    const pause = carousel.getByLabel('Metti in pausa lo scorrimento');
+    await expect(pause).toBeVisible();
+    await pause.click();
+    await expect(carousel.getByLabel('Riprendi lo scorrimento')).toBeVisible();
+  });
+
+  test('announces the position for screen readers', async ({ page }) => {
+    await page.goto('/recensioni');
+    const carousel = page.locator('[data-carousel]').first();
+    if ((await carousel.count()) === 0) test.skip(true, 'no published reviews in this run');
+
+    const status = carousel.locator('[data-carousel-status]');
+    await expect(status).toHaveAttribute('aria-live', 'polite');
+    await expect(status).toHaveText(/Recensione \d+ di \d+/);
   });
 });

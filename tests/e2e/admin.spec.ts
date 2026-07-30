@@ -45,6 +45,12 @@ async function submitBooking(page: Page, start: string, end: string, microchip: 
   await page.locator('[name="lastName"]').fill('Rossi');
   await page.locator('[name="email"]').fill('marco@example.com');
   await page.locator('[name="phone"]').fill('+39 333 1112223');
+  await page.locator('[name="emergencyFirstName0"]').fill('Anna');
+  await page.locator('[name="emergencyLastName0"]').fill('Bianchi');
+  await page.locator('[name="emergencyPhone0"]').fill('+39 333 4445556');
+  await page.locator('[name="emergencyFirstName1"]').fill('Luca');
+  await page.locator('[name="emergencyLastName1"]').fill('Verdi');
+  await page.locator('[name="emergencyPhone1"]').fill('059 111222');
 
   for (const name of [
     'hasMicrochip','hasHealthRecord','hasInsurance','hasVaccinations',
@@ -125,6 +131,9 @@ test.describe('admin workflow', () => {
     await login(page);
     const card = page.locator('li').filter({ hasText: reference });
     await expect(card).toBeVisible();
+    await expect(card).toContainText('Anna Bianchi');
+    await expect(card).toContainText('Luca Verdi');
+
     await card.getByRole('button', { name: 'Conferma' }).click();
     await expect(page.getByRole('status')).toContainText(`${reference} confermata`);
 

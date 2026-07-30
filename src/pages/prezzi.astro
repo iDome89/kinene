@@ -6,7 +6,7 @@ import SectionHeading from '@/components/SectionHeading.astro';
 import Button from '@/components/Button.astro';
 import Icon from '@/components/Icon.astro';
 import Callout from '@/components/Callout.astro';
-import { policy, serviceList } from '@/config/business';
+import { maxDurationLabel, policy, serviceList } from '@/config/business';
 import { formatEuro } from '@/lib/pricing';
 
 const description =
@@ -60,7 +60,7 @@ const latePercent = policy.lateCancellationFeeRatio * 100;
                   {service.checkOutNextDay && <span class="block text-xs">giorno successivo</span>}
                 </td>
                 <td class="py-5 pr-6 tabular-nums text-muted">
-                  {service.maxNights === null ? '—' : `${service.maxNights} ${service.maxNights === 1 ? 'notte' : 'notti'}`}
+                  {maxDurationLabel(service)}
                 </td>
                 <td class="py-5 text-right font-display text-lg font-semibold tabular-nums">
                   {formatEuro(service.priceCents)}

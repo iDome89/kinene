@@ -1,6 +1,6 @@
 import { and, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
 import { db } from './client';
-import { blackouts, bookings, capacityOverrides, dogs, owners, rateLimits } from './schema';
+import { blackouts, bookings, capacityOverrides, dogs, emergencyContacts, owners, rateLimits } from './schema';
 import { buildOccupancy, type DaySpan, type OccupancyGrid } from '@/lib/availability';
 import { business } from '@/config/business';
 
@@ -39,6 +39,24 @@ export async function loadOccupancy(originDay: number, dayCount: number): Promis
     blackouts: blocks as DaySpan[],
     capacityOverrides: overrides.map((row) => ({ day: row.day, maxDogs: row.maxDogs })),
   });
+}
+
+export async function contactsForBookings(bookingIds: readonly number[]) {
+  if (bookingIds.length === 0) return new Map<number, (typeof emergencyContacts.$inferSelect)[]>();
+
+  const rows = await db
+    .select()
+    .from(emergencyContacts)
+    .where(inArray(emergencyContacts.bookingId, [...bookingIds]))
+    .orderBy(emergencyContacts.position);
+
+  const byBooking = new Map<number, (typeof emergencyContacts.$inferSelect)[]>();
+  for (const row of rows) {
+    const list = byBooking.get(row.bookingId);
+    if (list) list.push(row);
+    else byBooking.set(row.bookingId, [row]);
+  }
+  return byBooking;
 }
 
 export async function findDogByMicrochip(microchip: string) {
@@ -113,5 +131,5 @@ export async function consumeRateLimit(key: string, limit: number, now: number):
   return true;
 }
 
-export { db, bookings, dogs, owners, blackouts, capacityOverrides };
+export { db, bookings, dogs, owners, blackouts, capacityOverrides, emergencyContacts };
 export { and, eq, gte, lt, lte, or, inArray };

@@ -4,11 +4,14 @@ import {
   cancellationNoticeDays,
   cancellationOutcome,
   isBlockingHighSeasonNotice,
-  maxNightsFor,
+  completeContacts,
+  isCompleteContact,
+  maxUnitsFor,
   monthsBetween,
   validateBooking,
   type BookingRequest,
   type DogDeclaration,
+  type EmergencyContact,
   type ViolationCode,
 } from '@/lib/rules';
 import { parseDay } from '@/lib/dates';
@@ -31,12 +34,18 @@ const compliantDog: DogDeclaration = {
   hasAggressionHistory: false,
 };
 
+const twoContacts: EmergencyContact[] = [
+  { firstName: 'Anna', lastName: 'Bianchi', phone: '+39 333 1112223' },
+  { firstName: 'Luca', lastName: 'Verdi', phone: '059 111222' },
+];
+
 function request(overrides: Partial<BookingRequest> = {}, dog: Partial<DogDeclaration> = {}): BookingRequest {
   return {
     service: 'pensione',
     startDay: day('2026-10-01'),
     endDay: day('2026-10-05'),
     dog: { ...compliantDog, ...dog },
+    emergencyContacts: twoContacts,
     acceptedRules: true,
     acceptedPrivacy: true,
     ...overrides,
@@ -94,22 +103,35 @@ describe('validateBooking — the one year minimum', () => {
 describe('validateBooking — stay length', () => {
   it('allows boarding of exactly fourteen nights', () => {
     const r = request({ startDay: day('2026-10-01'), endDay: day('2026-10-15') });
-    expect(codes(r)).not.toContain('too-many-nights');
+    expect(codes(r)).not.toContain('too-many-units');
   });
 
   it('rejects boarding of fifteen nights', () => {
     const r = request({ startDay: day('2026-10-01'), endDay: day('2026-10-16') });
-    expect(codes(r)).toContain('too-many-nights');
+    expect(codes(r)).toContain('too-many-units');
   });
 
-  it('never rejects day care on length because it has no cap', () => {
-    const r = request({ service: 'asilo-diurno', startDay: day('2026-10-01'), endDay: day('2026-11-30') });
-    expect(codes(r)).not.toContain('too-many-nights');
+  it('allows day care of exactly one day', () => {
+    const r = request({ service: 'asilo-diurno', startDay: day('2026-10-01'), endDay: day('2026-10-01') });
+    expect(codes(r)).not.toContain('too-many-units');
+  });
+
+  it('rejects day care spanning two days, because the cap is one', () => {
+    const r = request({ service: 'asilo-diurno', startDay: day('2026-10-01'), endDay: day('2026-10-02') });
+    expect(codes(r)).toContain('too-many-units');
   });
 
   it('cannot exceed the cap on overnight care because the end date is forced', () => {
     const r = request({ service: 'asilo-notturno', startDay: day('2026-10-01'), endDay: day('2026-10-20') });
-    expect(codes(r)).not.toContain('too-many-nights');
+    expect(codes(r)).not.toContain('too-many-units');
+  });
+
+  it('names the cap in the message', () => {
+    const violation = validateBooking(
+      request({ service: 'asilo-diurno', startDay: day('2026-10-01'), endDay: day('2026-10-04') }),
+      TODAY,
+    ).find((v) => v.code === 'too-many-units');
+    expect(violation?.message).toContain('1 giorno');
   });
 });
 
@@ -181,15 +203,70 @@ describe('validateBooking — messages', () => {
       (v) => v.code === 'dog-too-young',
     );
     expect(violation?.message).toMatch(/un anno di età/i);
+    expect(violation?.message).toMatch(/comandi di base/i);
     expect(violation?.field).toBe('birthDate');
   });
 });
 
-describe('maxNightsFor', () => {
+describe('maxUnitsFor', () => {
   it('reflects the configured caps', () => {
-    expect(maxNightsFor('pensione')).toBe(14);
-    expect(maxNightsFor('asilo-notturno')).toBe(1);
-    expect(maxNightsFor('asilo-diurno')).toBeNull();
+    expect(maxUnitsFor('pensione')).toBe(14);
+    expect(maxUnitsFor('asilo-notturno')).toBe(1);
+    expect(maxUnitsFor('asilo-diurno')).toBe(1);
+  });
+});
+
+describe('emergency contacts', () => {
+  it('accepts a contact with a name, a surname and a phone', () => {
+    expect(isCompleteContact({ firstName: 'Anna', lastName: 'Bianchi', phone: '+39 333 1112223' })).toBe(true);
+  });
+
+  it('rejects a contact missing any of the three fields', () => {
+    expect(isCompleteContact({ firstName: '', lastName: 'Bianchi', phone: '+39 333 1112223' })).toBe(false);
+    expect(isCompleteContact({ firstName: 'Anna', lastName: '', phone: '+39 333 1112223' })).toBe(false);
+    expect(isCompleteContact({ firstName: 'Anna', lastName: 'Bianchi', phone: '' })).toBe(false);
+  });
+
+  it('rejects an implausible phone number', () => {
+    expect(isCompleteContact({ firstName: 'Anna', lastName: 'Bianchi', phone: '123' })).toBe(false);
+    expect(isCompleteContact({ firstName: 'Anna', lastName: 'Bianchi', phone: 'chiamami' })).toBe(false);
+  });
+
+  it('ignores surrounding whitespace', () => {
+    expect(isCompleteContact({ firstName: ' Anna ', lastName: ' Bianchi ', phone: ' 059 111222 ' })).toBe(true);
+  });
+
+  it('counts only the complete ones', () => {
+    const contacts: EmergencyContact[] = [
+      { firstName: 'Anna', lastName: 'Bianchi', phone: '+39 333 1112223' },
+      { firstName: 'Luca', lastName: '', phone: '059 111222' },
+    ];
+    expect(completeContacts(contacts)).toHaveLength(1);
+  });
+
+  it('accepts a booking with two complete contacts', () => {
+    expect(codes(request())).not.toContain('missing-emergency-contacts');
+  });
+
+  it('rejects a booking with only one contact', () => {
+    expect(codes(request({ emergencyContacts: [twoContacts[0]!] }))).toContain('missing-emergency-contacts');
+  });
+
+  it('rejects a booking with none', () => {
+    expect(codes(request({ emergencyContacts: [] }))).toContain('missing-emergency-contacts');
+  });
+
+  it('rejects two contacts when one of them is incomplete', () => {
+    const contacts: EmergencyContact[] = [
+      twoContacts[0]!,
+      { firstName: 'Luca', lastName: 'Verdi', phone: '' },
+    ];
+    expect(codes(request({ emergencyContacts: contacts }))).toContain('missing-emergency-contacts');
+  });
+
+  it('accepts a third contact without complaint', () => {
+    const contacts = [...twoContacts, { firstName: 'Sara', lastName: 'Neri', phone: '+39 340 5556667' }];
+    expect(codes(request({ emergencyContacts: contacts }))).not.toContain('missing-emergency-contacts');
   });
 });
 

@@ -3,7 +3,7 @@ import Admin from '@/layouts/Admin.astro';
 import Icon from '@/components/Icon.astro';
 import { db } from '@/db/client';
 import { bookings, dogs } from '@/db/schema';
-import { listBookings, loadOccupancy } from '@/db/queries';
+import { contactsForBookings, listBookings, loadOccupancy } from '@/db/queries';
 import { eq } from 'drizzle-orm';
 import { spanIsAvailable } from '@/lib/availability';
 import { formatDayIt, formatDayShortIt, todayInBusinessTimezone } from '@/lib/dates';
@@ -67,6 +67,8 @@ const pending = rows.filter((row) => row.booking.status === 'requested');
 const confirmed = rows
   .filter((row) => row.booking.status === 'confirmed' && row.booking.endDay >= today)
   .slice(0, 12);
+
+const contactsByBooking = await contactsForBookings(pending.map((row) => row.booking.id));
 
 const STATUS_STYLE: Record<string, string> = {
   requested: 'bg-accent-100 text-accent-800',
@@ -217,6 +219,26 @@ const STATUS_STYLE: Record<string, string> = {
                   )}
                 </dl>
               )}
+
+              <div class="mt-4 border-t border-edge pt-4">
+                <p class="m-0 text-xs uppercase tracking-wide text-muted">Contatti di emergenza</p>
+                {contactsByBooking.get(booking.id)?.length ? (
+                  <ul class="m-0 mt-2 flex list-none flex-wrap gap-x-8 gap-y-1 p-0 text-sm">
+                    {contactsByBooking.get(booking.id)!.map((contact) => (
+                      <li>
+                        <span class="font-medium">
+                          {contact.firstName} {contact.lastName}
+                        </span>
+                        <a href={`tel:${contact.phone}`} class="ml-2 text-accent">
+                          {contact.phone}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p class="m-0 mt-1 text-sm text-danger">Nessun contatto registrato.</p>
+                )}
+              </div>
 
               <form method="POST" class="mt-6 flex flex-wrap items-end gap-3 border-t border-edge pt-5">
                 <input type="hidden" name="id" value={booking.id} />

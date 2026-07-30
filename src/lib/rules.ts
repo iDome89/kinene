@@ -7,7 +7,8 @@ export type ViolationCode =
   | 'unknown-service'
   | 'invalid-range'
   | 'start-in-past'
-  | 'too-many-nights'
+  | 'too-many-units'
+  | 'missing-emergency-contacts'
   | 'dog-too-young'
   | 'female-in-heat'
   | 'missing-microchip'
@@ -41,13 +42,34 @@ export interface DogDeclaration {
   readonly hasAggressionHistory: boolean;
 }
 
+export interface EmergencyContact {
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly phone: string;
+}
+
 export interface BookingRequest {
   readonly service: ServiceId;
   readonly startDay: number;
   readonly endDay: number;
   readonly dog: DogDeclaration;
+  readonly emergencyContacts: readonly EmergencyContact[];
   readonly acceptedRules: boolean;
   readonly acceptedPrivacy: boolean;
+}
+
+const CONTACT_PHONE = /^[+\d][\d\s./()-]{6,24}$/;
+
+export function isCompleteContact(contact: EmergencyContact): boolean {
+  return (
+    contact.firstName.trim().length > 0 &&
+    contact.lastName.trim().length > 0 &&
+    CONTACT_PHONE.test(contact.phone.trim())
+  );
+}
+
+export function completeContacts(contacts: readonly EmergencyContact[]): EmergencyContact[] {
+  return contacts.filter(isCompleteContact);
 }
 
 export function monthsBetween(fromDay: number, toDay: number): number {
@@ -61,8 +83,8 @@ export function ageInMonthsAtCheckIn(birthDay: number, startDay: number): number
   return monthsBetween(birthDay, startDay);
 }
 
-export function maxNightsFor(service: ServiceId): number | null {
-  return services[service]?.maxNights ?? null;
+export function maxUnitsFor(service: ServiceId): number {
+  return services[service].maxUnits;
 }
 
 export function cancellationNoticeDays(startDay: number, endDay: number): number {
@@ -124,12 +146,15 @@ export function validateBooking(request: BookingRequest, todayDay: number): Viol
     });
   }
 
-  const maxNights = definition.maxNights;
-  if (maxNights !== null && billableUnits(request.service, request.startDay, endDay) > maxNights) {
+  const maxUnits = definition.maxUnits;
+  if (billableUnits(request.service, request.startDay, endDay) > maxUnits) {
+    const unit = definition.priceUnit === 'giorno'
+      ? maxUnits === 1 ? 'giorno' : 'giorni'
+      : maxUnits === 1 ? 'notte' : 'notti';
     violations.push({
-      code: 'too-many-nights',
+      code: 'too-many-units',
       field: 'endDate',
-      message: `${definition.name}: il soggiorno non può superare ${maxNights} ${maxNights === 1 ? 'notte' : 'notti'}.`,
+      message: `${definition.name}: la durata massima è di ${maxUnits} ${unit}.`,
     });
   }
 
@@ -145,7 +170,8 @@ export function validateBooking(request: BookingRequest, todayDay: number): Viol
     violations.push({
       code: 'dog-too-young',
       field: 'birthDate',
-      message: 'Non accettiamo cani al di sotto di un anno di età alla data di consegna.',
+      message:
+        'Non accettiamo cani al di sotto di un anno di età alla data di consegna: il cucciolo non ha ancora i comandi di base ed è troppo piccolo per stare senza il proprietario.',
     });
   }
 
@@ -218,6 +244,14 @@ export function validateBooking(request: BookingRequest, todayDay: number): Viol
       code: 'aggression-declared',
       field: 'hasAggressionHistory',
       message: 'Non accettiamo cani con problemi di aggressività, intolleranza o forte reattività.',
+    });
+  }
+
+  if (completeContacts(request.emergencyContacts).length < policy.minEmergencyContacts) {
+    violations.push({
+      code: 'missing-emergency-contacts',
+      field: 'emergencyContacts',
+      message: `Servono almeno ${policy.minEmergencyContacts} contatti di emergenza, ciascuno con nome, cognome e numero di telefono.`,
     });
   }
 

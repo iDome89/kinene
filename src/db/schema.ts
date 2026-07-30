@@ -78,6 +78,21 @@ export const bookings = sqliteTable(
   ],
 );
 
+export const emergencyContacts = sqliteTable(
+  'emergency_contacts',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    bookingId: integer('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    firstName: text('first_name').notNull(),
+    lastName: text('last_name').notNull(),
+    phone: text('phone').notNull(),
+    position: integer('position').notNull(),
+  },
+  (table) => [index('emergency_contacts_booking_idx').on(table.bookingId)],
+);
+
 export const blackouts = sqliteTable(
   'blackouts',
   {
@@ -105,3 +120,4 @@ export type Booking = typeof bookings.$inferSelect;
 export type Dog = typeof dogs.$inferSelect;
 export type Owner = typeof owners.$inferSelect;
 export type Blackout = typeof blackouts.$inferSelect;
+export type EmergencyContactRow = typeof emergencyContacts.$inferSelect;

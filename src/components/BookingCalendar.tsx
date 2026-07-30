@@ -12,7 +12,7 @@ import {
   weekdayOf,
 } from '@/lib/dates';
 import { billableUnits, departureDayFor } from '@/lib/availability';
-import { services, type ServiceId } from '@/config/business';
+import { maxDurationLabel, services, type ServiceId } from '@/config/business';
 import { formatEuro } from '@/lib/pricing';
 
 type Status = 0 | 1 | 2;
@@ -41,7 +41,7 @@ const STATUS_LABEL: Record<Status, string> = {
 
 export default function BookingCalendar({
   service: initialService,
-  months = 3,
+  months = 2,
   initialStart,
   initialEnd,
 }: Props) {
@@ -117,7 +117,7 @@ export default function BookingCalendar({
     return null;
   }, [byDay, start, resolvedEnd]);
 
-  const overLimit = definition.maxNights !== null && units > definition.maxNights;
+  const overLimit = units > definition.maxUnits;
 
   useEffect(() => {
     if (!liveRef.current) return;
@@ -257,7 +257,7 @@ export default function BookingCalendar({
           </button>
         </div>
 
-        <div class="mt-6 grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+        <div class="mt-6 grid gap-x-10 gap-y-9 lg:grid-cols-2">
           {monthsToRender.map((monthStart) => {
             const { year, month } = civilFromDay(monthStart);
             const leading = (weekdayOf(monthStart) + 6) % 7;
@@ -265,21 +265,21 @@ export default function BookingCalendar({
 
             return (
               <div key={monthStart}>
-                <p class="m-0 mb-3 text-center font-sans text-sm font-semibold capitalize">
+                <p class="m-0 mb-4 text-center font-sans text-[0.95rem] font-semibold capitalize">
                   {monthNameIt(month)} {year}
                 </p>
-                <div class="grid grid-cols-7 gap-1">
+                <div class="grid grid-cols-7 gap-1.5">
                   {WEEKDAY_LABELS.map((label) => (
                     <abbr
                       key={label}
                       title={label}
-                      class="pb-1 text-center text-[0.65rem] font-medium uppercase tracking-wide text-muted no-underline"
+                      class="pb-1.5 text-center text-[0.7rem] font-medium uppercase tracking-wide text-muted no-underline"
                     >
                       {label.slice(0, 2)}
                     </abbr>
                   ))}
                 </div>
-                <div class="mt-1 grid grid-cols-7 gap-1">
+                <div class="mt-1.5 grid grid-cols-7 gap-1.5">
                   {Array.from({ length: leading }, (_, index) => (
                     <span key={`pad-${index}`} aria-hidden="true" />
                   ))}
@@ -306,7 +306,7 @@ export default function BookingCalendar({
                           past ? 'data passata' : STATUS_LABEL[status]
                         }${info && status === 0 ? `, ${info.left} posti liberi` : ''}`}
                         class={[
-                          'relative flex aspect-square min-h-9 items-center justify-center rounded-lg text-sm tabular-nums transition-colors',
+                          'relative flex aspect-square min-h-11 items-center justify-center rounded-lg text-[0.95rem] tabular-nums transition-colors',
                           isEdge
                             ? 'bg-primary font-semibold text-on-primary'
                             : inRange
@@ -384,8 +384,7 @@ export default function BookingCalendar({
 
             {overLimit && (
               <p class="m-0 mt-4 text-sm font-medium text-danger">
-                {definition.name}: il soggiorno non può superare {definition.maxNights}{' '}
-                {definition.maxNights === 1 ? 'notte' : 'notti'}. Accorcia le date.
+                {definition.name}: la durata massima è di {maxDurationLabel(definition)}. Accorcia le date.
               </p>
             )}
 

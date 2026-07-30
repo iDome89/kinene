@@ -9,10 +9,16 @@ import BookingCalendar from '@/components/BookingCalendar';
 import { business, policy, services, type ServiceId } from '@/config/business';
 import { formatDayIt, todayInBusinessTimezone } from '@/lib/dates';
 import { formatEuro } from '@/lib/pricing';
-import { bookingReference, prepareBooking, readSubmission, spanIsAvailable } from '@/lib/booking';
+import {
+  EMERGENCY_CONTACT_SLOTS,
+  bookingReference,
+  prepareBooking,
+  readSubmission,
+  spanIsAvailable,
+} from '@/lib/booking';
 import { loadOccupancy } from '@/db/queries';
 import { db } from '@/db/client';
-import { bookings, dogs, owners } from '@/db/schema';
+import { bookings, dogs, emergencyContacts, owners } from '@/db/schema';
 import { consumeRateLimit, findDogByMicrochip, findOwnerByEmail } from '@/db/queries';
 import { eq } from 'drizzle-orm';
 import type { Violation } from '@/lib/rules';
@@ -42,8 +48,15 @@ if (Astro.request.method === 'POST') {
   const fields = readSubmission(form);
 
   previous = Object.fromEntries(
-    Object.entries(fields).map(([key, value]) => [key, typeof value === 'string' ? value : value ? 'on' : '']),
+    Object.entries(fields)
+      .filter(([, value]) => !Array.isArray(value))
+      .map(([key, value]) => [key, typeof value === 'string' ? value : value ? 'on' : '']),
   );
+  fields.emergencyContacts.forEach((contact, slot) => {
+    previous[`emergencyFirstName${slot}`] = contact.firstName;
+    previous[`emergencyLastName${slot}`] = contact.lastName;
+    previous[`emergencyPhone${slot}`] = contact.phone;
+  });
 
   if (fields.service in services) initialService = fields.service as ServiceId;
 
@@ -139,19 +152,32 @@ if (Astro.request.method === 'POST') {
 
         const reference = bookingReference(crypto.getRandomValues(new Uint8Array(6)));
 
-        await db.insert(bookings).values({
-          reference,
-          dogId,
-          service: booking.service,
-          startDay: booking.startDay,
-          endDay: booking.endDay,
-          occupiesFrom: booking.occupies.from,
-          occupiesTo: booking.occupies.toExclusive,
-          status: 'requested',
-          priceCents: booking.priceCents,
-          notes: fields.notes || null,
-          createdAt: now,
-        });
+        const [created] = await db
+          .insert(bookings)
+          .values({
+            reference,
+            dogId,
+            service: booking.service,
+            startDay: booking.startDay,
+            endDay: booking.endDay,
+            occupiesFrom: booking.occupies.from,
+            occupiesTo: booking.occupies.toExclusive,
+            status: 'requested',
+            priceCents: booking.priceCents,
+            notes: fields.notes || null,
+            createdAt: now,
+          })
+          .returning({ id: bookings.id });
+
+        await db.insert(emergencyContacts).values(
+          booking.emergencyContacts.map((contact, position) => ({
+            bookingId: created!.id,
+            firstName: contact.firstName,
+            lastName: contact.lastName,
+            phone: contact.phone,
+            position,
+          })),
+        );
 
         submitted = {
           reference,
@@ -236,7 +262,7 @@ const hintClass = 'mt-1 block text-xs text-muted';
         />
 
         <Section>
-          <form method="POST" novalidate class="grid gap-12 lg:grid-cols-[1.15fr_0.85fr]">
+          <form method="POST" novalidate class="grid gap-12 xl:grid-cols-[1.45fr_0.55fr]">
             <div>
               {fatalError && (
                 <Callout tone="warning" title="Richiesta non inviata" class="mb-8">
@@ -271,7 +297,7 @@ const hintClass = 'mt-1 block text-xs text-muted';
                 <BookingCalendar
                   client:load
                   service={initialService}
-                  months={3}
+                  months={2}
                   initialStart={value('startDate')}
                   initialEnd={value('endDate')}
                 />
@@ -415,7 +441,81 @@ const hintClass = 'mt-1 block text-xs text-muted';
                 </li>
               </ul>
 
-              <h2 class="mt-14 font-display text-2xl font-semibold">4. I tuoi dati</h2>
+              <h2 class="mt-14 font-display text-2xl font-semibold">4. Contatti di emergenza</h2>
+              <p class="mt-2 text-sm text-muted">
+                Servono almeno {policy.minEmergencyContacts} persone raggiungibili e in grado di venire a
+                prendere il cane se tu non fossi reperibile. Il terzo contatto è facoltativo.
+              </p>
+
+              {
+                errorFor('emergencyContacts') && (
+                  <p id="field-emergencyContacts" class="mt-3 text-sm font-medium text-danger">
+                    {errorFor('emergencyContacts')}
+                  </p>
+                )
+              }
+
+              <Callout tone="warning" title="Perché li chiediamo" class="mt-5">
+                Se al termine del soggiorno il cane non viene ritirato e né tu né i contatti di emergenza
+                risultate rintracciabili per più di {policy.unreachableReportDays} giorni, siamo obbligati a
+                segnalare l’accaduto alle forze dell’ordine e ai servizi veterinari: ai sensi
+                dell’{policy.abandonmentLaw} l’abbandono di animali domestici è un reato.
+                <a href="/regolamento">Leggi il regolamento</a>.
+              </Callout>
+
+              <div class="mt-6 flex flex-col gap-5">
+                {
+                  Array.from({ length: EMERGENCY_CONTACT_SLOTS }, (_, slot) => slot).map((slot) => (
+                    <fieldset class="m-0 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-5">
+                      <legend class="px-2 text-sm font-semibold">
+                        Contatto {slot + 1}
+                        {slot < policy.minEmergencyContacts ? (
+                          <span aria-hidden="true"> *</span>
+                        ) : (
+                          <span class="font-normal text-muted"> — facoltativo</span>
+                        )}
+                      </legend>
+                      <div class="grid gap-4 sm:grid-cols-3">
+                        <div>
+                          <label class={labelClass} for={`field-emergencyFirstName${slot}`}>Nome</label>
+                          <input
+                            id={`field-emergencyFirstName${slot}`}
+                            class={inputClass}
+                            type="text"
+                            name={`emergencyFirstName${slot}`}
+                            value={value(`emergencyFirstName${slot}`)}
+                            autocomplete="off"
+                          />
+                        </div>
+                        <div>
+                          <label class={labelClass} for={`field-emergencyLastName${slot}`}>Cognome</label>
+                          <input
+                            id={`field-emergencyLastName${slot}`}
+                            class={inputClass}
+                            type="text"
+                            name={`emergencyLastName${slot}`}
+                            value={value(`emergencyLastName${slot}`)}
+                            autocomplete="off"
+                          />
+                        </div>
+                        <div>
+                          <label class={labelClass} for={`field-emergencyPhone${slot}`}>Telefono</label>
+                          <input
+                            id={`field-emergencyPhone${slot}`}
+                            class={inputClass}
+                            type="tel"
+                            name={`emergencyPhone${slot}`}
+                            value={value(`emergencyPhone${slot}`)}
+                            autocomplete="off"
+                          />
+                        </div>
+                      </div>
+                    </fieldset>
+                  ))
+                }
+              </div>
+
+              <h2 class="mt-14 font-display text-2xl font-semibold">5. I tuoi dati</h2>
               <div class="mt-6 grid gap-5 sm:grid-cols-2">
                 <div>
                   <label class={labelClass} for="field-firstName">Nome <span aria-hidden="true">*</span></label>
@@ -482,7 +582,7 @@ const hintClass = 'mt-1 block text-xs text-muted';
               </div>
             </div>
 
-            <aside class="lg:sticky lg:top-28 lg:self-start">
+            <aside class="xl:sticky xl:top-28 xl:self-start">
               <div class="flex flex-col gap-4">
                 <Callout tone="warning" title="Il test d’ingresso viene prima">
                   È gratuito e obbligatorio prima del primo soggiorno. Se non l’hai ancora fatto, la richiesta

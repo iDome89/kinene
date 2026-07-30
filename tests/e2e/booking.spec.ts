@@ -59,6 +59,15 @@ async function fillDog(page: Page, overrides: Record<string, string> = {}) {
   }
 }
 
+async function fillEmergencyContacts(page: Page) {
+  await page.locator('[name="emergencyFirstName0"]').fill('Anna');
+  await page.locator('[name="emergencyLastName0"]').fill('Bianchi');
+  await page.locator('[name="emergencyPhone0"]').fill('+39 333 1112223');
+  await page.locator('[name="emergencyFirstName1"]').fill('Luca');
+  await page.locator('[name="emergencyLastName1"]').fill('Verdi');
+  await page.locator('[name="emergencyPhone1"]').fill('059 111222');
+}
+
 async function tickCompliance(page: Page, extra: string[] = []) {
   for (const name of [...COMPLIANT_CHECKS, ...extra]) {
     await page.locator(`[name="${name}"]`).first().check();
@@ -74,12 +83,13 @@ test.beforeEach(async () => {
 test.describe('booking', () => {
   test('accepts a compliant request and shows it is not yet confirmed', async ({ page }) => {
     await page.goto('/prenota');
-    await pickDates(page, futureDate(5), futureDate(8));
+    await pickDates(page, futureDate(3), futureDate(6));
 
-    await expect(page.locator('[name="startDate"]')).toHaveValue(futureDate(5));
+    await expect(page.locator('[name="startDate"]')).toHaveValue(futureDate(3));
     await expect(page.getByText('3 × 30,00 € / notte')).toBeVisible();
 
     await fillDog(page);
+    await fillEmergencyContacts(page);
     await tickCompliance(page);
     await page.getByTestId('submit-booking').click();
 
@@ -91,8 +101,9 @@ test.describe('booking', () => {
 
   test('rejects a dog under one year with the rule stated', async ({ page }) => {
     await page.goto('/prenota');
-    await pickDates(page, futureDate(10), futureDate(12));
+    await pickDates(page, futureDate(8), futureDate(10));
     await fillDog(page, { birthDate: futureDate(-120), microchip: '380260000333444' });
+    await fillEmergencyContacts(page);
     await tickCompliance(page);
     await page.getByTestId('submit-booking').click();
 
@@ -102,33 +113,46 @@ test.describe('booking', () => {
 
   test('keeps the selected dates after a rejected submission', async ({ page }) => {
     await page.goto('/prenota');
-    await pickDates(page, futureDate(14), futureDate(16));
+    await pickDates(page, futureDate(12), futureDate(14));
     await fillDog(page, { birthDate: futureDate(-200), microchip: '380260000555666' });
+    await fillEmergencyContacts(page);
     await tickCompliance(page);
     await page.getByTestId('submit-booking').click();
 
     await expect(page.getByRole('alert')).toBeVisible();
-    await expect(page.locator('[name="startDate"]')).toHaveValue(futureDate(14));
-    await expect(page.locator('[name="endDate"]')).toHaveValue(futureDate(16));
+    await expect(page.locator('[name="startDate"]')).toHaveValue(futureDate(12));
+    await expect(page.locator('[name="endDate"]')).toHaveValue(futureDate(14));
+  });
+
+  test('rejects day care spanning more than one day', async ({ page }) => {
+    await page.goto('/prenota');
+    await page.waitForFunction(() => document.querySelectorAll('button[data-day]').length > 20);
+    await page.getByRole('radio', { name: 'Asilo diurno' }).check({ force: true });
+    await pickDay(page, futureDate(16));
+    await pickDay(page, futureDate(18));
+
+    await expect(page.getByText(/la durata massima è di 1 giorno/)).toBeVisible();
   });
 
   test('rejects a boarding stay longer than fourteen nights', async ({ page }) => {
     await page.goto('/prenota');
-    await pickDates(page, futureDate(18), futureDate(38));
+    await pickDates(page, futureDate(4), futureDate(20));
 
-    await expect(page.getByText(/non può superare 14 notti/)).toBeVisible();
+    await expect(page.getByText(/la durata massima è di 14 notti/)).toBeVisible();
 
     await fillDog(page, { microchip: '380260000777888' });
+    await fillEmergencyContacts(page);
     await tickCompliance(page);
     await page.getByTestId('submit-booking').click();
 
-    await expect(page.getByRole('alert')).toContainText('non può superare 14');
+    await expect(page.getByRole('alert')).toContainText('durata massima è di 14 notti');
   });
 
   test('rejects a female declared in heat', async ({ page }) => {
     await page.goto('/prenota');
-    await pickDates(page, futureDate(40), futureDate(42));
+    await pickDates(page, futureDate(22), futureDate(24));
     await fillDog(page, { sex: 'F', microchip: '380260000999000' });
+    await fillEmergencyContacts(page);
     await tickCompliance(page, ['inHeatOrNear']);
     await page.getByTestId('submit-booking').click();
 
@@ -137,8 +161,9 @@ test.describe('booking', () => {
 
   test('rejects a declared aggression history', async ({ page }) => {
     await page.goto('/prenota');
-    await pickDates(page, futureDate(44), futureDate(46));
+    await pickDates(page, futureDate(2), futureDate(4));
     await fillDog(page, { microchip: '380260001111222' });
+    await fillEmergencyContacts(page);
     await tickCompliance(page, ['hasAggressionHistory']);
     await page.getByTestId('submit-booking').click();
 
@@ -147,8 +172,9 @@ test.describe('booking', () => {
 
   test('requires the regolamento and the privacy consent separately', async ({ page }) => {
     await page.goto('/prenota');
-    await pickDates(page, futureDate(48), futureDate(50));
+    await pickDates(page, futureDate(6), futureDate(8));
     await fillDog(page, { microchip: '380260001333444' });
+    await fillEmergencyContacts(page);
 
     for (const name of COMPLIANT_CHECKS) await page.locator(`[name="${name}"]`).first().check();
     await page.locator('[name="acceptedRules"]').check();
@@ -157,10 +183,36 @@ test.describe('booking', () => {
     await expect(page.getByRole('alert')).toContainText('trattamento dei dati personali');
   });
 
+  test('rejects a request with fewer than two emergency contacts', async ({ page }) => {
+    await page.goto('/prenota');
+    await pickDates(page, futureDate(22), futureDate(24));
+    await fillDog(page, { microchip: '380260001777888' });
+    await page.locator('[name="emergencyFirstName0"]').fill('Anna');
+    await page.locator('[name="emergencyLastName0"]').fill('Bianchi');
+    await page.locator('[name="emergencyPhone0"]').fill('+39 333 1112223');
+    await tickCompliance(page);
+    await page.getByTestId('submit-booking').click();
+
+    await expect(page.getByRole('alert')).toContainText('almeno 2 contatti di emergenza');
+  });
+
+  test('rejects an emergency contact missing a phone number', async ({ page }) => {
+    await page.goto('/prenota');
+    await pickDates(page, futureDate(26), futureDate(28));
+    await fillDog(page, { microchip: '380260001999000' });
+    await fillEmergencyContacts(page);
+    await page.locator('[name="emergencyPhone1"]').fill('');
+    await tickCompliance(page);
+    await page.getByTestId('submit-booking').click();
+
+    await expect(page.getByRole('alert')).toContainText('almeno 2 contatti di emergenza');
+  });
+
   test('rejects a request missing the mandatory documents', async ({ page }) => {
     await page.goto('/prenota');
-    await pickDates(page, futureDate(52), futureDate(54));
+    await pickDates(page, futureDate(18), futureDate(20));
     await fillDog(page, { microchip: '380260001555666' });
+    await fillEmergencyContacts(page);
     await page.locator('[name="acceptedRules"]').check();
     await page.locator('[name="acceptedPrivacy"]').check();
     await page.getByTestId('submit-booking').click();
@@ -172,20 +224,52 @@ test.describe('booking', () => {
   });
 });
 
-test('refuses a flood of submissions from the same client', async ({ page }) => {
+test('refuses a flood of submissions from the same client', async ({ request, page }) => {
   await clearRateLimits();
   const before = await countBookings();
 
-  let blocked = false;
-  for (let attempt = 0; attempt < 9 && !blocked; attempt += 1) {
-    await page.goto('/prenota');
-    await pickDates(page, futureDate(5 + attempt), futureDate(6 + attempt));
-    await fillDog(page, { microchip: `38026000200${String(attempt).padStart(4, '0')}` });
-    await tickCompliance(page);
-    await page.getByTestId('submit-booking').click();
-    blocked = await page.getByText('Troppe richieste in poco tempo').isVisible();
+  const body = (attempt: number) => ({
+    service: 'pensione',
+    startDate: futureDate(3 + attempt),
+    endDate: futureDate(4 + attempt),
+    dogName: 'Ares',
+    birthDate: '2021-05-14',
+    sex: 'M',
+    microchip: `38026000300${String(attempt).padStart(4, '0')}`,
+    firstName: 'Giulia',
+    lastName: 'Ferrari',
+    email: 'giulia@example.com',
+    phone: '+39 340 9988776',
+    emergencyFirstName0: 'Anna',
+    emergencyLastName0: 'Bianchi',
+    emergencyPhone0: '+39 333 1112223',
+    emergencyFirstName1: 'Luca',
+    emergencyLastName1: 'Verdi',
+    emergencyPhone1: '059 111222',
+    hasMicrochip: 'on',
+    hasHealthRecord: 'on',
+    hasInsurance: 'on',
+    hasVaccinations: 'on',
+    hasParasiteTreatment: 'on',
+    isHealthy: 'on',
+    knowsBaseCommands: 'on',
+    acceptedRules: 'on',
+    acceptedPrivacy: 'on',
+  });
+
+  let blockedAt = -1;
+  for (let attempt = 0; attempt < 9 && blockedAt < 0; attempt += 1) {
+    const response = await request.post('/prenota', {
+      form: body(attempt),
+      headers: { origin: 'http://127.0.0.1:4331' },
+    });
+    expect(response.status()).toBe(200);
+    if ((await response.text()).includes('Troppe richieste in poco tempo')) blockedAt = attempt;
   }
 
-  expect(blocked, 'the rate limiter should refuse a flood of submissions').toBe(true);
-  expect(await countBookings()).toBeLessThan(before + 9);
+  expect(blockedAt, 'the rate limiter should refuse a flood of submissions').toBeGreaterThan(0);
+  expect(await countBookings(), 'blocked submissions must not reach the database').toBe(before + blockedAt);
+
+  await page.goto('/prenota');
+  await expect(page.getByText('Troppe richieste in poco tempo')).toBeHidden();
 });

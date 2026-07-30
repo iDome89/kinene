@@ -1,7 +1,13 @@
 import { departureDayFor, occupancySpanFor, spanIsAvailable } from './availability';
 import { parseDay, todayInBusinessTimezone } from './dates';
 import { quote } from './pricing';
-import { validateBooking, type DogDeclaration, type Violation } from './rules';
+import {
+  completeContacts,
+  validateBooking,
+  type DogDeclaration,
+  type EmergencyContact,
+  type Violation,
+} from './rules';
 import { services, type ServiceId } from '@/config/business';
 
 export interface SubmissionFields {
@@ -25,6 +31,7 @@ export interface SubmissionFields {
   readonly phone: string;
   readonly address: string;
   readonly notes: string;
+  readonly emergencyContacts: readonly EmergencyContact[];
   readonly inHeatOrNear: boolean;
   readonly hasMicrochip: boolean;
   readonly hasHealthRecord: boolean;
@@ -42,9 +49,21 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE = /^[+\d][\d\s./()-]{6,24}$/;
 const MICROCHIP = /^\d{15}$/;
 
+export const EMERGENCY_CONTACT_SLOTS = 3;
+
 export function readSubmission(form: FormData): SubmissionFields {
   const text = (key: string) => String(form.get(key) ?? '').trim();
   const flag = (key: string) => form.get(key) === 'on' || form.get(key) === 'true';
+
+  const emergencyContacts: EmergencyContact[] = [];
+  for (let slot = 0; slot < EMERGENCY_CONTACT_SLOTS; slot += 1) {
+    const contact = {
+      firstName: text(`emergencyFirstName${slot}`),
+      lastName: text(`emergencyLastName${slot}`),
+      phone: text(`emergencyPhone${slot}`),
+    };
+    if (contact.firstName || contact.lastName || contact.phone) emergencyContacts.push(contact);
+  }
 
   return {
     service: text('service'),
@@ -67,6 +86,7 @@ export function readSubmission(form: FormData): SubmissionFields {
     phone: text('phone'),
     address: text('address'),
     notes: text('notes'),
+    emergencyContacts,
     inHeatOrNear: flag('inHeatOrNear'),
     hasMicrochip: flag('hasMicrochip'),
     hasHealthRecord: flag('hasHealthRecord'),
@@ -89,6 +109,7 @@ export interface PreparedBooking {
   readonly priceCents: number;
   readonly dog: DogDeclaration;
   readonly birthDay: number;
+  readonly emergencyContacts: readonly EmergencyContact[];
 }
 
 export type PreparationResult =
@@ -165,6 +186,7 @@ export function prepareBooking(fields: SubmissionFields, todayDay = todayInBusin
         startDay,
         endDay,
         dog,
+        emergencyContacts: fields.emergencyContacts,
         acceptedRules: fields.acceptedRules,
         acceptedPrivacy: fields.acceptedPrivacy,
       },
@@ -184,6 +206,7 @@ export function prepareBooking(fields: SubmissionFields, todayDay = todayInBusin
       priceCents: quote(fields.service, startDay, endDay).totalCents,
       dog,
       birthDay: birthDay!,
+      emergencyContacts: completeContacts(fields.emergencyContacts),
     },
   };
 }

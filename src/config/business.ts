@@ -72,7 +72,8 @@ export interface ServiceDefinition {
   readonly checkOutFrom: string;
   readonly checkOutTo: string;
   readonly checkOutNextDay: boolean;
-  readonly maxNights: number | null;
+  /* Cap on billable units: giorni for asilo diurno, notti for the others. */
+  readonly maxUnits: number;
   readonly priceCents: number;
   readonly priceUnit: 'giorno' | 'notte';
 }
@@ -84,13 +85,13 @@ export const services: Readonly<Record<ServiceId, ServiceDefinition>> = {
     shortName: 'Diurno',
     summary:
       'Il tuo cane trascorre la giornata con noi: gioco, socializzazione controllata e riposo, con la sua routine di sempre.',
-    checkInFrom: '10:00',
+    checkInFrom: '07:00',
     checkInTo: '12:00',
-    checkOutFrom: '18:00',
+    checkOutFrom: '14:00',
     checkOutTo: '20:00',
     checkOutNextDay: false,
-    maxNights: null,
-    priceCents: 2500,
+    maxUnits: 1,
+    priceCents: 1500,
     priceUnit: 'giorno',
   },
   'asilo-notturno': {
@@ -99,13 +100,13 @@ export const services: Readonly<Record<ServiceId, ServiceDefinition>> = {
     shortName: 'Notturno',
     summary:
       'Consegna la sera, ritiro la mattina successiva. Per chi ha bisogno di una sola notte in mani sicure.',
-    checkInFrom: '18:00',
+    checkInFrom: '16:00',
     checkInTo: '20:00',
-    checkOutFrom: '10:00',
+    checkOutFrom: '07:00',
     checkOutTo: '12:00',
     checkOutNextDay: true,
-    maxNights: 1,
-    priceCents: 3000,
+    maxUnits: 1,
+    priceCents: 2500,
     priceUnit: 'notte',
   },
   pensione: {
@@ -114,16 +115,21 @@ export const services: Readonly<Record<ServiceId, ServiceDefinition>> = {
     shortName: 'Pensione',
     summary:
       'Soggiorni fino a due settimane. Spazi ampi, routine personalizzata e aggiornamenti costanti sul tuo cane.',
-    checkInFrom: '08:00',
+    checkInFrom: '07:00',
     checkInTo: '12:00',
-    checkOutFrom: '10:00',
-    checkOutTo: '12:00',
+    checkOutFrom: '16:00',
+    checkOutTo: '20:00',
     checkOutNextDay: true,
-    maxNights: 14,
+    maxUnits: 14,
     priceCents: 3000,
     priceUnit: 'notte',
   },
 } as const;
+
+export function maxDurationLabel(service: ServiceDefinition): string {
+  const plural = service.priceUnit === 'giorno' ? 'giorni' : 'notti';
+  return `${service.maxUnits} ${service.maxUnits === 1 ? service.priceUnit : plural}`;
+}
 
 export const serviceList: readonly ServiceDefinition[] = [
   services['asilo-diurno'],
@@ -133,11 +139,14 @@ export const serviceList: readonly ServiceDefinition[] = [
 
 export const policy = {
   minAgeMonths: 12,
+  minEmergencyContacts: 2,
   standardCancellationDays: 7,
   highSeasonCancellationDays: 14,
   lateCancellationFeeRatio: 0.5,
   forcedRemovalPenaltyCents: 5000,
   forcedRemovalCollectionHours: 12,
+  unreachableReportDays: 2,
+  abandonmentLaw: 'articolo 727 del codice penale italiano',
   scheduleChangeNoticeHours: 24,
   emergencyClinic: 'Clinica Veterinaria Modena Sud',
   requiredCommands: ['vieni', 'siedi', 'resta', 'terra'],

@@ -8,7 +8,7 @@ import Button from '@/components/Button.astro';
 import Icon from '@/components/Icon.astro';
 import Callout from '@/components/Callout.astro';
 import Figure from '@/components/Figure.astro';
-import { policy, serviceList, services, type ServiceId } from '@/config/business';
+import { maxDurationLabel, policy, serviceList, services, type ServiceId } from '@/config/business';
 import { serviceCopy } from '@/content/services';
 import { formatEuro } from '@/lib/pricing';
 import { whatsappLink } from '@/lib/links';
@@ -79,7 +79,7 @@ const breadcrumb = [
       <div>
         <dt class="text-xs uppercase tracking-[0.16em] text-muted">Durata max</dt>
         <dd class="m-0 mt-1.5 font-display text-xl font-semibold tabular-nums">
-          {service.maxNights === null ? '—' : `${service.maxNights} ${service.maxNights === 1 ? 'notte' : 'notti'}`}
+          {maxDurationLabel(service)}
         </dd>
       </div>
     </dl>

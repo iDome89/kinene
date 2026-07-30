@@ -1,0 +1,351 @@
+---
+import Base from '@/layouts/Base.astro';
+import PageHero from '@/components/PageHero.astro';
+import Section from '@/components/Section.astro';
+import Button from '@/components/Button.astro';
+import Icon from '@/components/Icon.astro';
+import Callout from '@/components/Callout.astro';
+import Stars from '@/components/Stars.astro';
+import ReviewMarquee from '@/components/ReviewMarquee.astro';
+import { db } from '@/db/client';
+import { reviews } from '@/db/schema';
+import { consumeRateLimit, listPublishedReviews } from '@/db/queries';
+import {
+  BODY_MAX,
+  BODY_MIN,
+  RATING_MAX,
+  displayName,
+  summarise,
+  validateReview,
+  type ReviewViolation,
+} from '@/lib/reviews';
+import { business } from '@/config/business';
+
+export const prerender = false;
+
+const description =
+  'Le recensioni di chi ha lasciato il proprio cane da Kinene, a Guiglia (MO). Leggi le esperienze e lascia la tua.';
+
+const breadcrumb = [
+  { name: 'Home', href: '/' },
+  { name: 'Recensioni', href: '/recensioni' },
+];
+
+let violations: readonly ReviewViolation[] = [];
+let submitted = false;
+let fatalError: string | null = null;
+let previous: Record<string, string> = {};
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const text = (key: string) => String(form.get(key) ?? '').trim();
+
+  const submission = {
+    firstName: text('firstName'),
+    lastName: text('lastName'),
+    email: text('email').toLowerCase(),
+    dogName: text('dogName'),
+    rating: Number(form.get('rating')),
+    body: text('body'),
+    acceptedPrivacy: form.get('acceptedPrivacy') === 'on',
+  };
+
+  previous = {
+    firstName: submission.firstName,
+    lastName: submission.lastName,
+    email: submission.email,
+    dogName: submission.dogName,
+    rating: String(form.get('rating') ?? ''),
+    body: submission.body,
+    acceptedPrivacy: submission.acceptedPrivacy ? 'on' : '',
+  };
+
+  /* Bots fill every field they find; a real person never sees this one. */
+  const trapped = text('website').length > 0;
+  const allowed = await consumeRateLimit(`review:${Astro.clientAddress ?? 'unknown'}`, 4, Date.now());
+
+  if (!allowed) {
+    fatalError = 'Troppi invii in poco tempo. Riprova tra qualche minuto.';
+  } else if (trapped) {
+    submitted = true;
+  } else {
+    violations = validateReview(submission);
+
+    if (violations.length === 0) {
+      await db.insert(reviews).values({
+        firstName: submission.firstName,
+        lastName: submission.lastName,
+        email: submission.email,
+        dogName: submission.dogName || null,
+        rating: submission.rating,
+        body: submission.body,
+        status: 'pending',
+        createdAt: Date.now(),
+      });
+      submitted = true;
+      previous = {};
+    }
+  }
+}
+
+const published = await listPublishedReviews();
+const summary = summarise(published.map((review) => review.rating));
+
+const half = Math.ceil(published.length / 2);
+const topRow = published.slice(0, half);
+const bottomRow = published.slice(half);
+
+const errorFor = (field: string) => violations.find((violation) => violation.field === field)?.message;
+const value = (key: string) => previous[key] ?? '';
+
+const inputClass =
+  'mt-1.5 block min-h-11 w-full rounded-lg border border-edge-strong bg-surface-raised px-3.5 py-2 outline-none transition-colors focus:border-accent';
+const labelClass = 'block text-sm font-medium';
+---
+
+<Base title="Recensioni" description={description} breadcrumb={breadcrumb}>
+  {
+    summary.count > 0 && (
+      <Fragment slot="head">
+        <script
+          type="application/ld+json"
+          is:inline
+          set:html={JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'LocalBusiness',
+            '@id': `${Astro.site ?? 'https://kinene.it'}/#business`,
+            name: business.tradeName,
+            aggregateRating: {
+              '@type': 'AggregateRating',
+              ratingValue: summary.average,
+              reviewCount: summary.count,
+              bestRating: RATING_MAX,
+              worstRating: 1,
+            },
+            review: published.slice(0, 10).map((review) => ({
+              '@type': 'Review',
+              author: { '@type': 'Person', name: displayName(review.firstName, review.lastName) },
+              reviewRating: { '@type': 'Rating', ratingValue: review.rating, bestRating: RATING_MAX },
+              reviewBody: review.body,
+              datePublished: new Date(review.createdAt).toISOString().slice(0, 10),
+            })),
+          })}
+        />
+      </Fragment>
+    )
+  }
+
+  <PageHero
+    eyebrow="Recensioni"
+    title="Cosa dicono i proprietari"
+    lead="Le recensioni vengono pubblicate dopo una verifica, per evitare testi falsi o offensivi. Non ne cancelliamo di negative."
+    breadcrumb={breadcrumb}
+  >
+    {
+      summary.count > 0 && (
+        <div class="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+          <span class="font-display text-5xl font-semibold tabular-nums">
+            {summary.average.toLocaleString('it-IT', { minimumFractionDigits: 1 })}
+          </span>
+          <span>
+            <Stars rating={summary.average} size={22} label={`Media ${summary.average} su ${RATING_MAX}`} />
+            <span class="mt-1 block text-sm text-muted">
+              su {summary.count} {summary.count === 1 ? 'recensione' : 'recensioni'}
+            </span>
+          </span>
+        </div>
+      )
+    }
+  </PageHero>
+
+  {
+    published.length > 0 && (
+      <section class="overflow-hidden py-14" aria-labelledby="tutte-le-recensioni">
+        <h2 id="tutte-le-recensioni" class="sr-only">
+          Tutte le recensioni pubblicate
+        </h2>
+        <ReviewMarquee reviews={topRow} />
+        {bottomRow.length > 0 && (
+          <div class="mt-5">
+            <ReviewMarquee reviews={bottomRow} reverse />
+          </div>
+        )}
+      </section>
+    )
+  }
+
+  <Section tone="sunken" labelledby="lascia-recensione">
+    <div class="grid gap-12 lg:grid-cols-[1fr_1fr]">
+      <div>
+        <h2 id="lascia-recensione" class="font-display text-[clamp(1.6rem,1.2rem+1.6vw,2.3rem)] font-semibold">
+          Lascia la tua recensione
+        </h2>
+        <p class="mt-4 leading-relaxed text-muted">
+          Se il tuo cane è stato da noi, raccontalo. Serve a chi sta decidendo a chi affidare il proprio.
+        </p>
+
+        {
+          published.length === 0 && (
+            <Callout tone="info" title="Ancora nessuna recensione" class="mt-6">
+              Nessuno ha ancora scritto. Se sei stato da noi, saresti il primo.
+            </Callout>
+          )
+        }
+
+        <Callout tone="info" title="Come funziona" class="mt-6">
+          La recensione non compare subito: la leggiamo prima di pubblicarla, per filtrare spam e insulti.
+          L’email serve solo a verificare che tu sia una persona reale e <strong>non viene pubblicata</strong>.
+          Nome e cognome invece sì.
+        </Callout>
+      </div>
+
+      <div>
+        {
+          submitted ? (
+            <div class="rounded-[var(--radius-card)] border border-ok/35 bg-surface-raised p-8 text-center">
+              <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-surface-tint text-ok">
+                <Icon name="check" size={26} />
+              </span>
+              <h3 class="mt-5 font-display text-xl font-semibold">Grazie</h3>
+              <p class="mt-3 text-sm leading-relaxed text-muted">
+                Abbiamo ricevuto la tua recensione. La pubblichiamo dopo una verifica, di norma entro
+                qualche giorno.
+              </p>
+              <div class="mt-6">
+                <Button href="/recensioni" variant="outline">Torna alle recensioni</Button>
+              </div>
+            </div>
+          ) : (
+            <form method="POST" novalidate class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-7">
+              {fatalError && (
+                <p role="alert" class="mb-6 rounded-lg border border-danger/35 bg-danger-surface p-3 text-sm text-danger">
+                  {fatalError}
+                </p>
+              )}
+
+              {violations.length > 0 && (
+                <div role="alert" class="mb-6 rounded-lg border border-danger/35 bg-danger-surface p-4">
+                  <p class="m-0 text-sm font-semibold text-danger">
+                    {violations.length === 1 ? 'C’è un problema' : `Ci sono ${violations.length} problemi`}
+                  </p>
+                  <ul class="m-0 mt-2 flex list-none flex-col gap-1 p-0 text-sm">
+                    {violations.map((violation) => (
+                      <li>
+                        <a href={`#field-${violation.field}`} class="text-danger underline underline-offset-2">
+                          {violation.message}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <fieldset class="m-0 border-0 p-0">
+                <legend class={labelClass}>
+                  Voto <span aria-hidden="true">*</span>
+                </legend>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  {Array.from({ length: RATING_MAX }, (_, index) => RATING_MAX - index).map((star) => (
+                    <label class="cursor-pointer">
+                      <input
+                        type="radio"
+                        name="rating"
+                        value={star}
+                        checked={value('rating') === String(star)}
+                        class="peer sr-only"
+                        required
+                      />
+                      <span class="flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-full border border-edge-strong px-4 text-sm transition-colors peer-checked:border-primary peer-checked:bg-primary peer-checked:text-on-primary peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent">
+                        {star} ★
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {errorFor('rating') && (
+                  <span id="field-rating" class="mt-1 block text-xs text-danger">{errorFor('rating')}</span>
+                )}
+              </fieldset>
+
+              <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label class={labelClass} for="field-firstName">
+                    Nome <span aria-hidden="true">*</span>
+                  </label>
+                  <input id="field-firstName" class={inputClass} type="text" name="firstName" value={value('firstName')} maxlength="60" required autocomplete="given-name" />
+                  {errorFor('firstName') && <span class="mt-1 block text-xs text-danger">{errorFor('firstName')}</span>}
+                </div>
+                <div>
+                  <label class={labelClass} for="field-lastName">
+                    Cognome <span aria-hidden="true">*</span>
+                  </label>
+                  <input id="field-lastName" class={inputClass} type="text" name="lastName" value={value('lastName')} maxlength="60" required autocomplete="family-name" />
+                  {errorFor('lastName') && <span class="mt-1 block text-xs text-danger">{errorFor('lastName')}</span>}
+                </div>
+                <div>
+                  <label class={labelClass} for="field-email">
+                    Email <span aria-hidden="true">*</span>
+                  </label>
+                  <input id="field-email" class={inputClass} type="email" name="email" value={value('email')} required autocomplete="email" />
+                  <span class="mt-1 block text-xs text-muted">Non viene pubblicata.</span>
+                  {errorFor('email') && <span class="mt-1 block text-xs text-danger">{errorFor('email')}</span>}
+                </div>
+                <div>
+                  <label class={labelClass} for="field-dogName">Nome del cane</label>
+                  <input id="field-dogName" class={inputClass} type="text" name="dogName" value={value('dogName')} maxlength="60" />
+                </div>
+              </div>
+
+              <div class="mt-5">
+                <label class={labelClass} for="field-body">
+                  La tua esperienza <span aria-hidden="true">*</span>
+                </label>
+                <textarea
+                  id="field-body"
+                  class={`${inputClass} min-h-36`}
+                  name="body"
+                  rows="6"
+                  minlength={BODY_MIN}
+                  maxlength={BODY_MAX}
+                  required
+                >{value('body')}</textarea>
+                <span class="mt-1 block text-xs text-muted">Da {BODY_MIN} a {BODY_MAX} caratteri.</span>
+                {errorFor('body') && <span class="mt-1 block text-xs text-danger">{errorFor('body')}</span>}
+              </div>
+
+              <div class="mt-5 hidden" aria-hidden="true">
+                <label for="field-website">Sito web</label>
+                <input id="field-website" type="text" name="website" tabindex="-1" autocomplete="off" />
+              </div>
+
+              <label class="mt-6 flex cursor-pointer items-start gap-3.5" for="field-acceptedPrivacy">
+                <input
+                  id="field-acceptedPrivacy"
+                  type="checkbox"
+                  name="acceptedPrivacy"
+                  checked={value('acceptedPrivacy') === 'on'}
+                  class="mt-0.5 h-5 w-5 shrink-0 accent-[var(--t-primary)]"
+                  required
+                />
+                <span class="text-sm leading-relaxed">
+                  Acconsento alla pubblicazione del mio nome, cognome e testo su questo sito, come descritto
+                  nell’<a href="/privacy" class="text-accent underline underline-offset-2">informativa privacy</a>.
+                  <span aria-hidden="true"> *</span>
+                  {errorFor('acceptedPrivacy') && (
+                    <span class="mt-1 block text-xs font-medium text-danger">{errorFor('acceptedPrivacy')}</span>
+                  )}
+                </span>
+              </label>
+
+              <div class="mt-7">
+                <Button type="submit" variant="accent" size="lg" data-testid="submit-review">
+                  Invia la recensione
+                  <Icon name="arrow-right" size={18} />
+                </Button>
+              </div>
+            </form>
+          )
+        }
+      </div>
+    </div>
+  </Section>
+</Base>

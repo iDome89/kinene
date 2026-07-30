@@ -1,0 +1,37 @@
+---
+import { RATING_MAX } from '@/lib/reviews';
+
+interface Props {
+  rating: number;
+  size?: number;
+  label?: string;
+  class?: string;
+}
+
+const { rating, size = 18, label, class: className = '' } = Astro.props;
+const filled = Math.round(rating);
+---
+
+<span
+  class={`inline-flex items-center gap-0.5 ${className}`}
+  role="img"
+  aria-label={label ?? `${rating} stelle su ${RATING_MAX}`}
+>
+  {
+    Array.from({ length: RATING_MAX }, (_, index) => (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill={index < filled ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linejoin="round"
+        aria-hidden="true"
+        class={index < filled ? 'text-accent' : 'text-edge-strong'}
+      >
+        <path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.4l6.1-.9Z" />
+      </svg>
+    ))
+  }
+</span>

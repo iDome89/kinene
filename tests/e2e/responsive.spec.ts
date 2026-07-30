@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-const PAGES = ['/', '/prezzi', '/regolamento', '/contatti', '/prenota'];
+const PAGES = ['/', '/prezzi', '/regolamento', '/contatti', '/prenota', '/recensioni'];
 
 for (const path of PAGES) {
   test(`${path} does not scroll horizontally on mobile`, async ({ page }) => {
@@ -32,7 +32,7 @@ test('the mobile menu opens and exposes every primary link', async ({ page }) =>
   await page.getByLabel('Apri il menu').click();
 
   const nav = page.locator('details[open] nav');
-  for (const label of ['Servizi', 'Prezzi', 'Galleria', 'Chi siamo', 'Contatti']) {
+  for (const label of ['Servizi', 'Prezzi', 'Galleria', 'Recensioni', 'Chi siamo', 'Contatti']) {
     await expect(nav.getByRole('link', { name: label })).toBeVisible();
   }
 });

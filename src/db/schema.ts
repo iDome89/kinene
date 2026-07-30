@@ -131,6 +131,27 @@ export const galleryImages = sqliteTable(
   ],
 );
 
+export const reviews = sqliteTable(
+  'reviews',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    firstName: text('first_name').notNull(),
+    lastName: text('last_name').notNull(),
+    /* Collected for moderation and never published. */
+    email: text('email').notNull(),
+    dogName: text('dog_name'),
+    rating: integer('rating').notNull(),
+    body: text('body').notNull(),
+    status: text('status', { enum: ['pending', 'published', 'rejected'] })
+      .notNull()
+      .default('pending'),
+    reply: text('reply'),
+    createdAt: integer('created_at').notNull(),
+    decidedAt: integer('decided_at'),
+  },
+  (table) => [index('reviews_status_idx').on(table.status, table.createdAt)],
+);
+
 export const rateLimits = sqliteTable('rate_limits', {
   key: text('key').primaryKey(),
   windowStart: integer('window_start').notNull(),
@@ -144,3 +165,4 @@ export type Blackout = typeof blackouts.$inferSelect;
 export type EmergencyContactRow = typeof emergencyContacts.$inferSelect;
 export type GalleryImage = typeof galleryImages.$inferSelect;
 export type GalleryCategory = GalleryImage['category'];
+export type Review = typeof reviews.$inferSelect;

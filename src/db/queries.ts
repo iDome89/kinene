@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
 import { db } from './client';
 import {
   blackouts,
@@ -9,6 +9,7 @@ import {
   galleryImages,
   owners,
   rateLimits,
+  reviews,
 } from './schema';
 import { buildOccupancy, type DaySpan, type OccupancyGrid } from '@/lib/availability';
 import { business } from '@/config/business';
@@ -75,6 +76,22 @@ export async function listGallery() {
 export async function nextGalleryPosition(): Promise<number> {
   const rows = await db.select({ position: galleryImages.position }).from(galleryImages);
   return rows.reduce((max, row) => Math.max(max, row.position), 0) + 1;
+}
+
+export async function listPublishedReviews() {
+  return db
+    .select()
+    .from(reviews)
+    .where(eq(reviews.status, 'published'))
+    .orderBy(desc(reviews.createdAt));
+}
+
+export async function listReviewsByStatus(statuses: readonly (typeof reviews.$inferSelect)['status'][]) {
+  return db
+    .select()
+    .from(reviews)
+    .where(inArray(reviews.status, [...statuses]))
+    .orderBy(desc(reviews.createdAt));
 }
 
 export async function findDogByMicrochip(microchip: string) {
@@ -149,5 +166,5 @@ export async function consumeRateLimit(key: string, limit: number, now: number):
   return true;
 }
 
-export { db, bookings, dogs, owners, blackouts, capacityOverrides, emergencyContacts, galleryImages };
-export { and, eq, gte, lt, lte, or, inArray };
+export { db, bookings, dogs, owners, blackouts, capacityOverrides, emergencyContacts, galleryImages, reviews };
+export { and, desc, eq, gte, lt, lte, or, inArray };

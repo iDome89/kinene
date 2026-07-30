@@ -10,6 +10,7 @@ const PUBLIC_PAGES = [
   '/regolamento',
   '/chi-siamo',
   '/galleria',
+  '/recensioni',
   '/test-di-ingresso',
   '/contatti',
   '/privacy',

@@ -1,0 +1,242 @@
+---
+import Admin from '@/layouts/Admin.astro';
+import Stars from '@/components/Stars.astro';
+import { db } from '@/db/client';
+import { reviews } from '@/db/schema';
+import { listReviewsByStatus } from '@/db/queries';
+import { eq } from 'drizzle-orm';
+import { displayName, summarise } from '@/lib/reviews';
+import { formatDayShortIt } from '@/lib/dates';
+import { MS_PER_DAY } from '@/lib/dates';
+
+export const prerender = false;
+
+let flash: { tone: 'ok' | 'error'; message: string } | null = null;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const id = Number(form.get('id'));
+  const action = String(form.get('action') ?? '');
+  const reply = String(form.get('reply') ?? '').trim() || null;
+  const now = Date.now();
+
+  if (action === 'publish') {
+    await db.update(reviews).set({ status: 'published', decidedAt: now, reply }).where(eq(reviews.id, id));
+    flash = { tone: 'ok', message: 'Recensione pubblicata.' };
+  } else if (action === 'reject') {
+    await db.update(reviews).set({ status: 'rejected', decidedAt: now }).where(eq(reviews.id, id));
+    flash = { tone: 'ok', message: 'Recensione rifiutata: resta archiviata ma non è visibile sul sito.' };
+  } else if (action === 'unpublish') {
+    await db.update(reviews).set({ status: 'pending', decidedAt: null }).where(eq(reviews.id, id));
+    flash = { tone: 'ok', message: 'Recensione rimossa dal sito e rimessa in attesa.' };
+  } else if (action === 'reply') {
+    await db.update(reviews).set({ reply }).where(eq(reviews.id, id));
+    flash = { tone: 'ok', message: 'Risposta salvata.' };
+  } else if (action === 'delete') {
+    await db.delete(reviews).where(eq(reviews.id, id));
+    flash = { tone: 'ok', message: 'Recensione eliminata definitivamente.' };
+  }
+}
+
+const all = await listReviewsByStatus(['pending', 'published', 'rejected']);
+const pending = all.filter((review) => review.status === 'pending');
+const published = all.filter((review) => review.status === 'published');
+const rejected = all.filter((review) => review.status === 'rejected');
+const summary = summarise(published.map((review) => review.rating));
+
+const dayOf = (ms: number) => formatDayShortIt(Math.floor(ms / MS_PER_DAY));
+
+const inputClass =
+  'mt-1.5 block min-h-11 w-full rounded-lg border border-edge-strong bg-surface px-3.5 outline-none transition-colors focus:border-accent';
+---
+
+<Admin title="Recensioni" active="recensioni">
+  {
+    flash && (
+      <p
+        role="status"
+        class:list={[
+          'mb-8 rounded-[var(--radius-card)] border p-4 text-sm',
+          flash.tone === 'ok'
+            ? 'border-ok/35 bg-surface-tint text-ok'
+            : 'border-danger/35 bg-danger-surface text-danger',
+        ]}
+      >
+        {flash.message}
+      </p>
+    )
+  }
+
+  <div class="mb-10 grid gap-4 sm:grid-cols-4">
+    <div class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
+      <p class="m-0 text-xs uppercase tracking-[0.16em] text-muted">Da moderare</p>
+      <p class="m-0 mt-2 font-display text-3xl font-semibold tabular-nums">{pending.length}</p>
+    </div>
+    <div class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
+      <p class="m-0 text-xs uppercase tracking-[0.16em] text-muted">Pubblicate</p>
+      <p class="m-0 mt-2 font-display text-3xl font-semibold tabular-nums">{published.length}</p>
+    </div>
+    <div class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
+      <p class="m-0 text-xs uppercase tracking-[0.16em] text-muted">Rifiutate</p>
+      <p class="m-0 mt-2 font-display text-3xl font-semibold tabular-nums">{rejected.length}</p>
+    </div>
+    <div class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
+      <p class="m-0 text-xs uppercase tracking-[0.16em] text-muted">Media pubblica</p>
+      <p class="m-0 mt-2 font-display text-3xl font-semibold tabular-nums">
+        {summary.count === 0 ? '—' : summary.average.toLocaleString('it-IT', { minimumFractionDigits: 1 })}
+      </p>
+    </div>
+  </div>
+
+  <h1 class="font-display text-2xl font-semibold">Da moderare</h1>
+
+  {
+    pending.length === 0 ? (
+      <p class="mt-6 rounded-[var(--radius-card)] border border-dashed border-edge-strong p-10 text-center text-muted">
+        Nessuna recensione in attesa.
+      </p>
+    ) : (
+      <ul class="mt-6 flex list-none flex-col gap-5 p-0">
+        {pending.map((review) => (
+          <li class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <Stars rating={review.rating} />
+                <p class="m-0 mt-2 font-medium">
+                  {displayName(review.firstName, review.lastName)}
+                  {review.dogName && <span class="font-normal text-muted"> · con {review.dogName}</span>}
+                </p>
+                <p class="m-0 text-xs text-muted">
+                  <a href={`mailto:${review.email}`} class="text-accent">{review.email}</a>
+                  <span> · {dayOf(review.createdAt)}</span>
+                </p>
+              </div>
+            </div>
+
+            <p class="mt-4 whitespace-pre-line text-sm leading-relaxed">{review.body}</p>
+
+            <form method="POST" class="mt-5 border-t border-edge pt-5">
+              <input type="hidden" name="id" value={review.id} />
+              <label class="block text-xs font-medium text-muted" for={`reply-${review.id}`}>
+                Risposta pubblica (facoltativa)
+              </label>
+              <input id={`reply-${review.id}`} class={inputClass} type="text" name="reply" maxlength="500" />
+
+              <div class="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="submit"
+                  name="action"
+                  value="publish"
+                  class="min-h-11 rounded-full bg-primary px-5 text-sm font-medium text-on-primary transition-colors hover:bg-primary-hover"
+                >
+                  Pubblica
+                </button>
+                <button
+                  type="submit"
+                  name="action"
+                  value="reject"
+                  class="min-h-11 rounded-full border border-danger/40 px-5 text-sm font-medium text-danger transition-colors hover:bg-danger-surface"
+                >
+                  Rifiuta
+                </button>
+              </div>
+            </form>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  <h2 class="mt-16 font-display text-2xl font-semibold">
+    Pubblicate <span class="font-sans text-base font-normal text-muted">· {published.length}</span>
+  </h2>
+
+  {
+    published.length === 0 ? (
+      <p class="mt-6 rounded-[var(--radius-card)] border border-dashed border-edge-strong p-10 text-center text-muted">
+        Nessuna recensione pubblicata. La pagina pubblica mostra solo il modulo.
+      </p>
+    ) : (
+      <ul class="mt-6 flex list-none flex-col gap-4 p-0">
+        {published.map((review) => (
+          <li class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-5">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div class="min-w-0">
+                <Stars rating={review.rating} size={15} />
+                <p class="m-0 mt-1.5 text-sm font-medium">
+                  {displayName(review.firstName, review.lastName)}
+                  <span class="font-normal text-muted"> · {dayOf(review.createdAt)}</span>
+                </p>
+                <p class="m-0 mt-2 max-w-2xl text-sm leading-relaxed text-muted">{review.body}</p>
+                {review.reply && (
+                  <p class="m-0 mt-2 rounded-lg bg-surface-tint p-2.5 text-xs text-muted">
+                    <span class="font-semibold text-body">Risposta:</span> {review.reply}
+                  </p>
+                )}
+              </div>
+
+              <div class="flex shrink-0 flex-col gap-2">
+                <form method="POST">
+                  <input type="hidden" name="id" value={review.id} />
+                  <button
+                    type="submit"
+                    name="action"
+                    value="unpublish"
+                    class="min-h-11 w-full rounded-full border border-edge-strong px-4 text-xs transition-colors hover:bg-surface-tint"
+                  >
+                    Rimuovi dal sito
+                  </button>
+                </form>
+                <form method="POST">
+                  <input type="hidden" name="id" value={review.id} />
+                  <button
+                    type="submit"
+                    name="action"
+                    value="delete"
+                    class="min-h-11 w-full rounded-full border border-danger/40 px-4 text-xs font-medium text-danger transition-colors hover:bg-danger-surface"
+                  >
+                    Elimina
+                  </button>
+                </form>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  {
+    rejected.length > 0 && (
+      <details class="mt-16">
+        <summary class="min-h-11 cursor-pointer font-display text-xl font-semibold">
+          Rifiutate <span class="font-sans text-base font-normal text-muted">· {rejected.length}</span>
+        </summary>
+        <ul class="mt-4 flex list-none flex-col gap-3 p-0">
+          {rejected.map((review) => (
+            <li class="flex items-start justify-between gap-4 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-4">
+              <div class="min-w-0">
+                <p class="m-0 text-sm font-medium">
+                  {displayName(review.firstName, review.lastName)}
+                  <span class="font-normal text-muted"> · {review.rating}★ · {dayOf(review.createdAt)}</span>
+                </p>
+                <p class="m-0 mt-1 max-w-2xl text-xs leading-relaxed text-muted">{review.body}</p>
+              </div>
+              <form method="POST" class="shrink-0">
+                <input type="hidden" name="id" value={review.id} />
+                <button
+                  type="submit"
+                  name="action"
+                  value="delete"
+                  class="min-h-11 rounded-full border border-danger/40 px-4 text-xs font-medium text-danger transition-colors hover:bg-danger-surface"
+                >
+                  Elimina
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      </details>
+    )
+  }
+</Admin>

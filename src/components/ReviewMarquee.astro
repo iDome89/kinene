@@ -1,0 +1,114 @@
+---
+import Stars from './Stars.astro';
+import { displayName } from '@/lib/reviews';
+import type { Review } from '@/db/schema';
+
+interface Props {
+  reviews: readonly Review[];
+  reverse?: boolean;
+  seconds?: number;
+}
+
+const { reviews, reverse = false, seconds } = Astro.props;
+
+/* Keep the pace constant as reviews are added, rather than speeding up. */
+const duration = seconds ?? Math.max(28, reviews.length * 9);
+---
+
+<div
+  class="marquee"
+  style={`--marquee-duration: ${duration}s`}
+  data-reverse={reverse ? '' : undefined}
+  role="region"
+  aria-label="Recensioni dei clienti"
+  tabindex="0"
+>
+  <ul class="marquee__track m-0 flex list-none gap-5 p-0">
+    {
+      [0, 1].map((copy) => (
+        <>
+          {reviews.map((review) => (
+            /* The second pass only exists to make the loop seamless. */
+            <li
+              class="marquee__card w-[19rem] shrink-0 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6 sm:w-[22rem]"
+              aria-hidden={copy === 1 ? 'true' : undefined}
+            >
+              <Stars rating={review.rating} label={`${review.rating} stelle su 5`} />
+
+              <p class="mt-4 text-sm leading-relaxed text-body">“{review.body}”</p>
+
+              <p class="m-0 mt-5 border-t border-edge pt-4 text-sm font-medium">
+                {displayName(review.firstName, review.lastName)}
+                {review.dogName && <span class="font-normal text-muted"> · con {review.dogName}</span>}
+              </p>
+
+              {review.reply && (
+                <p class="m-0 mt-3 rounded-lg bg-surface-tint p-3 text-xs leading-relaxed text-muted">
+                  <span class="font-semibold text-body">Risposta di Kinene:</span> {review.reply}
+                </p>
+              )}
+            </li>
+          ))}
+        </>
+      ))
+    }
+  </ul>
+</div>
+
+<style>
+  /* tabindex makes it scrollable by keyboard once the animation is off,
+     and focus-within pauses it while someone is reading. */
+  .marquee {
+    --edge-fade: 4rem;
+    overflow: hidden;
+    /* Fade the ends so cards enter and leave instead of being chopped off. */
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 var(--edge-fade),
+      #000 calc(100% - var(--edge-fade)),
+      transparent
+    );
+  }
+
+  .marquee__track {
+    width: max-content;
+    animation: marquee-scroll var(--marquee-duration) linear infinite;
+  }
+
+  .marquee[data-reverse] .marquee__track {
+    animation-direction: reverse;
+  }
+
+  /* Let people stop it to actually read a review. */
+  .marquee:hover .marquee__track,
+  .marquee:focus-within .marquee__track {
+    animation-play-state: paused;
+  }
+
+  @keyframes marquee-scroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      /* The track holds two identical passes, so half a loop is seamless. */
+      transform: translateX(calc(-50% - 0.625rem));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marquee {
+      mask-image: none;
+      overflow-x: auto;
+    }
+
+    .marquee__track {
+      animation: none;
+    }
+
+    /* Without motion the duplicate pass is noise, so drop it. */
+    .marquee__card[aria-hidden='true'] {
+      display: none;
+    }
+  }
+</style>

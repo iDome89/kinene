@@ -33,6 +33,7 @@ export const primaryNav: readonly NavItem[] = [
   { href: '/servizi/pensione', label: 'Servizi' },
   { href: '/prezzi', label: 'Prezzi' },
   { href: '/galleria', label: 'Galleria' },
+  { href: '/recensioni', label: 'Recensioni' },
   { href: '/chi-siamo', label: 'Chi siamo' },
   { href: '/contatti', label: 'Contatti' },
 ];
@@ -52,6 +53,7 @@ export const footerNav: readonly { title: string; items: readonly NavItem[] }[] 
     items: [
       { href: '/chi-siamo', label: 'Chi siamo' },
       { href: '/galleria', label: 'Galleria' },
+      { href: '/recensioni', label: 'Recensioni' },
       { href: '/prezzi', label: 'Prezzi e disdette' },
       { href: '/regolamento', label: 'Regolamento interno' },
     ],

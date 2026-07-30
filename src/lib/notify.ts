@@ -1,5 +1,3 @@
-import nodemailer from 'nodemailer';
-import { NOTIFY_EMAIL, SMTP_HOST, SMTP_PASS, SMTP_PORT, SMTP_USER } from 'astro:env/server';
 import { business, services, type ServiceId } from '@/config/business';
 import { formatDayIt } from './dates';
 import { formatEuro } from './pricing';
@@ -19,106 +17,132 @@ export interface BookingNotification {
   readonly notes: string;
 }
 
-function transport() {
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null;
-  return nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: Number(SMTP_PORT ?? 587),
-    secure: Number(SMTP_PORT ?? 587) === 465,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-  });
+export interface Message {
+  readonly to: string;
+  readonly subject: string;
+  readonly text: string;
+  readonly replyTo?: string;
 }
 
-function staffBody(booking: BookingNotification): string {
+const ENDPOINT = 'https://api.resend.com/emails';
+
+export async function sendMessage(message: Message, apiKey: string, from: string): Promise<string> {
+  const response = await fetch(ENDPOINT, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      from,
+      to: [message.to],
+      subject: message.subject,
+      text: message.text,
+      ...(message.replyTo ? { reply_to: message.replyTo } : {}),
+    }),
+  });
+
+  const payload = (await response.json().catch(() => null)) as
+    | { id?: string; message?: string; name?: string }
+    | null;
+
+  if (!response.ok) {
+    throw new Error(payload?.message ?? `Resend ha risposto ${response.status}`);
+  }
+  return payload?.id ?? 'unknown';
+}
+
+export function staffMessage(booking: BookingNotification): Message {
   const definition = services[booking.service];
   const contacts = booking.emergencyContacts
     .map((contact, index) => `  ${index + 1}. ${contact.firstName} ${contact.lastName} — ${contact.phone}`)
     .join('\n');
 
-  return [
-    `Nuova richiesta di prenotazione: ${booking.reference}`,
-    '',
-    `Servizio:  ${definition.name}`,
-    `Consegna:  ${formatDayIt(booking.startDay)} (${definition.checkInFrom}—${definition.checkInTo})`,
-    `Ritiro:    ${formatDayIt(booking.endDay)} (${definition.checkOutFrom}—${definition.checkOutTo})`,
-    `Totale:    ${formatEuro(booking.priceCents)}`,
-    '',
-    `Cane:      ${booking.dogName}`,
-    `Proprietario: ${booking.ownerName}`,
-    `Telefono:  ${booking.ownerPhone}`,
-    `Email:     ${booking.ownerEmail}`,
-    '',
-    'Contatti di emergenza:',
-    contacts || '  (nessuno)',
-    '',
-    booking.notes ? `Note: ${booking.notes}` : '',
-    '',
-    'La richiesta è in attesa: confermala o rifiutala dall’area di gestione.',
-  ]
-    .filter((line) => line !== '')
-    .join('\n');
+  return {
+    to: '',
+    replyTo: booking.ownerEmail,
+    subject: `Nuova richiesta ${booking.reference} — ${booking.dogName}`,
+    text: [
+      `Nuova richiesta di prenotazione: ${booking.reference}`,
+      '',
+      `Servizio:  ${definition.name}`,
+      `Consegna:  ${formatDayIt(booking.startDay)} (${definition.checkInFrom}—${definition.checkInTo})`,
+      `Ritiro:    ${formatDayIt(booking.endDay)} (${definition.checkOutFrom}—${definition.checkOutTo})`,
+      `Totale:    ${formatEuro(booking.priceCents)}`,
+      '',
+      `Cane:         ${booking.dogName}`,
+      `Proprietario: ${booking.ownerName}`,
+      `Telefono:     ${booking.ownerPhone}`,
+      `Email:        ${booking.ownerEmail}`,
+      '',
+      'Contatti di emergenza:',
+      contacts || '  (nessuno)',
+      ...(booking.notes ? ['', `Note: ${booking.notes}`] : []),
+      '',
+      'La richiesta è in attesa: confermala o rifiutala dall’area di gestione.',
+    ].join('\n'),
+  };
 }
 
-function ownerBody(booking: BookingNotification): string {
+export function ownerMessage(booking: BookingNotification): Message {
   const definition = services[booking.service];
 
-  return [
-    `Ciao ${booking.ownerName},`,
-    '',
-    `abbiamo ricevuto la tua richiesta per ${booking.dogName}. Non è ancora una conferma:`,
-    'verifichiamo la disponibilità e ti rispondiamo, di norma entro 24 ore.',
-    '',
-    `Riferimento: ${booking.reference}`,
-    `Servizio:    ${definition.name}`,
-    `Consegna:    ${formatDayIt(booking.startDay)} (${definition.checkInFrom}—${definition.checkInTo})`,
-    `Ritiro:      ${formatDayIt(booking.endDay)} (${definition.checkOutFrom}—${definition.checkOutTo})`,
-    `Totale stimato: ${formatEuro(booking.priceCents)}, da saldare il giorno del check-in.`,
-    '',
-    'Ricorda che prima del primo soggiorno è obbligatorio il test d’ingresso, che è gratuito.',
-    '',
-    `${business.tradeName} — ${business.contact.personName}`,
-    `${business.contact.phoneDisplay}`,
-  ].join('\n');
+  return {
+    to: booking.ownerEmail,
+    subject: `Richiesta ricevuta — ${booking.reference}`,
+    text: [
+      `Ciao ${booking.ownerName},`,
+      '',
+      `abbiamo ricevuto la tua richiesta per ${booking.dogName}. Non è ancora una conferma:`,
+      'verifichiamo la disponibilità e ti rispondiamo, di norma entro 24 ore.',
+      '',
+      `Riferimento:    ${booking.reference}`,
+      `Servizio:       ${definition.name}`,
+      `Consegna:       ${formatDayIt(booking.startDay)} (${definition.checkInFrom}—${definition.checkInTo})`,
+      `Ritiro:         ${formatDayIt(booking.endDay)} (${definition.checkOutFrom}—${definition.checkOutTo})`,
+      `Totale stimato: ${formatEuro(booking.priceCents)}, da saldare il giorno del check-in.`,
+      '',
+      'Ricorda che prima del primo soggiorno è obbligatorio il test d’ingresso, che è gratuito.',
+      '',
+      `${business.tradeName} — ${business.contact.personName}`,
+      business.contact.phoneDisplay,
+    ].join('\n'),
+  };
+}
+
+export interface MailConfig {
+  readonly apiKey: string | undefined;
+  readonly from: string | undefined;
+  readonly staffTo: string | undefined;
 }
 
 /*
   Notifications must never cost a booking: the request is already committed when
   this runs, so every failure is logged and swallowed.
 */
-export async function notifyBooking(booking: BookingNotification): Promise<void> {
-  const mailer = transport();
-  const staffTo = NOTIFY_EMAIL || business.contact.email;
+export async function deliverBooking(booking: BookingNotification, config: MailConfig): Promise<void> {
+  const staffTo = config.staffTo || business.contact.email;
 
-  if (!mailer || !staffTo) {
+  if (!config.apiKey || !config.from || !staffTo) {
     console.warn(
-      `[notify] SMTP non configurato: ${booking.reference} salvata ma nessuna email inviata. ` +
-        'Imposta SMTP_HOST, SMTP_USER, SMTP_PASS e NOTIFY_EMAIL.',
+      `[notify] Resend non configurato: ${booking.reference} salvata ma nessuna email inviata. ` +
+        'Imposta RESEND_API_KEY, MAIL_FROM e NOTIFY_EMAIL.',
     );
     return;
   }
 
-  const from = `"${business.tradeName}" <${SMTP_USER}>`;
+  const outbound: Message[] = [{ ...staffMessage(booking), to: staffTo }, ownerMessage(booking)];
 
-  await Promise.allSettled([
-    mailer.sendMail({
-      from,
-      to: staffTo,
-      replyTo: booking.ownerEmail,
-      subject: `Nuova richiesta ${booking.reference} — ${booking.dogName}`,
-      text: staffBody(booking),
-    }),
-    mailer.sendMail({
-      from,
-      to: booking.ownerEmail,
-      replyTo: staffTo,
-      subject: `Richiesta ricevuta — ${booking.reference}`,
-      text: ownerBody(booking),
-    }),
-  ]).then((results) => {
-    for (const result of results) {
-      if (result.status === 'rejected') {
-        console.error(`[notify] invio fallito per ${booking.reference}:`, result.reason);
-      }
+  const results = await Promise.allSettled(
+    outbound.map((message) => sendMessage(message, config.apiKey!, config.from!)),
+  );
+
+  results.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      console.error(
+        `[notify] invio a ${outbound[index]!.to} fallito per ${booking.reference}:`,
+        result.reason instanceof Error ? result.reason.message : result.reason,
+      );
     }
   });
 }

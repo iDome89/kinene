@@ -22,7 +22,7 @@ import { bookings, dogs, emergencyContacts, owners } from '@/db/schema';
 import { consumeRateLimit, findDogByMicrochip, findOwnerByEmail } from '@/db/queries';
 import { eq } from 'drizzle-orm';
 import type { Violation } from '@/lib/rules';
-import { notifyBooking } from '@/lib/notify';
+import { notifyBooking } from '@/lib/mailer';
 
 export const prerender = false;
 

@@ -32,7 +32,7 @@ Il sito è su `http://localhost:4321`, la gestione su `/admin`.
 |---|---|
 | `npm run dev` | server di sviluppo |
 | `npm run build` | verifica i contrasti del tema, poi compila |
-| `npm test` | 145 test unitari (disponibilità, regolamento, prezzi, date, auth, upload) |
+| `npm test` | 157 test unitari (disponibilità, regolamento, prezzi, date, auth, upload, email) |
 | `npm run test:e2e` | 60 test end-to-end, accessibilità, responsive, CSRF e galleria |
 | `npm run tokens:verify` | verifica WCAG AA su tutte le coppie di colore |
 | `npm run db:migrate` | applica le migrazioni |
@@ -47,7 +47,7 @@ Il sito è su `http://localhost:4321`, la gestione su `/admin`.
 1. Collega il repository su Render → "New Blueprint Instance"
 2. Imposta le variabili non sincronizzate:
    - `ADMIN_PASSWORD_HASH` — da `npm run auth:hash`
-   - `NOTIFY_EMAIL`, `SMTP_USER`, `SMTP_PASS` — vedi *Notifiche email* più sotto
+   - `RESEND_API_KEY`, `NOTIFY_EMAIL` — vedi *Notifiche email* più sotto
    - `SESSION_SECRET` viene generato da Render
 3. Deploy. Le migrazioni girano automaticamente all'avvio del container.
 
@@ -74,7 +74,8 @@ src/
     auth.ts              scrypt + cookie di sessione firmato HMAC
     media.ts             validazione degli upload sui magic byte
     storage.ts           derivate WebP su disco, via sharp
-    notify.ts            email di notifica, degradano se SMTP manca
+    notify.ts            costruzione e invio delle email, puro e testabile
+    mailer.ts            lettura di astro:env attorno a notify.ts
   db/                    schema Drizzle e query
   components/            componenti Astro + il calendario Preact
   pages/                 rotte
@@ -91,25 +92,41 @@ src/
 - **L'hash della password usa `.` come separatore, non `$`** — `dotenv-expand` interpreta `$nome` come variabile e troncherebbe silenziosamente il valore. C'è un test che lo verifica.
 - **Nessun tracciamento**: font self-hosted, nessuna CDN, nessuna analytics. Per questo non serve il banner cookie.
 
-## Notifiche email
+## Notifiche email (Resend)
 
-Le richieste di prenotazione inviano due email: una a Valeria e una di riepilogo al
-proprietario. Servono le credenziali SMTP in `.env` (o nelle variabili di Render):
+Ogni richiesta di prenotazione manda due email: i dettagli completi alla struttura
+e un riepilogo al proprietario. Passano da [Resend](https://resend.com), chiamato
+via REST — nessun SDK, nessun SMTP.
+
+**Configurazione**
+
+1. Crea l'account su resend.com (piano gratuito: 3.000 email al mese).
+2. Aggiungi `kinene.it` su resend.com/domains e inserisci i record DNS che ti dà
+   (SPF e DKIM) nel pannello del registrar. Finché il dominio non è verificato,
+   Resend accetta solo `onboarding@resend.dev` come mittente e solo l'email del tuo
+   account come destinatario.
+3. Genera una chiave su resend.com/api-keys.
+4. Imposta le variabili:
 
 ```
-SMTP_HOST=smtp.mail.me.com
-SMTP_PORT=587
-SMTP_USER=valeria.borda@icloud.com
-SMTP_PASS=<password per app>
+RESEND_API_KEY=re_...
+MAIL_FROM=Kinene <prenotazioni@kinene.it>
 NOTIFY_EMAIL=valeria.borda@icloud.com
 ```
 
-Per iCloud serve una **password per app** generata su appleid.apple.com, non la
-password dell'account.
+**Verifica prima di andare in produzione**
 
-Senza credenziali il sito continua a funzionare: la prenotazione viene salvata e
-resta visibile in `/admin`, ma nessuna email parte e il server scrive un avviso nei
-log. In quel caso bisogna controllare l'area di gestione a mano.
+```bash
+npm run mail:test
+```
+
+Manda un messaggio di prova e distingue i modi di fallire: chiave non valida,
+dominio non verificato, invio rifiutato.
+
+Senza chiave il sito funziona identico: la prenotazione viene salvata e resta
+visibile in `/admin`, ma nessuna email parte e il server scrive un avviso nei log.
+L'invio non può far fallire una prenotazione — quando parte, la richiesta è già
+a database.
 
 ## Cosa manca
 

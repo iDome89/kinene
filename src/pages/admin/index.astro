@@ -3,7 +3,9 @@ import Admin from '@/layouts/Admin.astro';
 import Icon from '@/components/Icon.astro';
 import { db } from '@/db/client';
 import { bookings, dogs } from '@/db/schema';
-import { contactsForBookings, listBookings, loadOccupancy } from '@/db/queries';
+import { contactsForBookings, findBookingWithOwner, listBookings, loadOccupancy } from '@/db/queries';
+import { notifyDecision } from '@/lib/mailer';
+import type { Decision } from '@/lib/notify';
 import { eq } from 'drizzle-orm';
 import { spanIsAvailable } from '@/lib/availability';
 import { formatDayIt, formatDayShortIt, todayInBusinessTimezone } from '@/lib/dates';
@@ -23,7 +25,29 @@ if (Astro.request.method === 'POST') {
   const staffNote = String(form.get('staffNote') ?? '').trim() || null;
   const now = Date.now();
 
-  const [target] = await db.select().from(bookings).where(eq(bookings.id, id)).limit(1);
+  const row = await findBookingWithOwner(id);
+  const target = row?.booking;
+
+  /* The customer was told "ti rispondiamo": this is that reply. */
+  const tellOwner = async (decision: Decision) => {
+    if (!row) return ' Email al proprietario non inviata.';
+    const sent = await notifyDecision(
+      {
+        reference: row.booking.reference,
+        service: row.booking.service,
+        startDay: row.booking.startDay,
+        endDay: row.booking.endDay,
+        priceCents: row.booking.priceCents,
+        dogName: row.dog.name,
+        ownerName: `${row.owner.firstName} ${row.owner.lastName}`,
+        ownerEmail: row.owner.email,
+        intakeTestPassed: row.dog.intakeTestStatus === 'passed',
+        staffNote: staffNote ?? '',
+      },
+      decision,
+    );
+    return sent ? ' Email inviata al proprietario.' : ' Email al proprietario NON inviata: controlla la configurazione.';
+  };
 
   if (!target) {
     flash = { tone: 'error', message: 'Richiesta non trovata.' };
@@ -41,14 +65,17 @@ if (Astro.request.method === 'POST') {
         .update(bookings)
         .set({ status: 'confirmed', decidedAt: now, staffNote })
         .where(eq(bookings.id, id));
-      flash = { tone: 'ok', message: `${target.reference} confermata.` };
+      const mail = await tellOwner('confirmed');
+      flash = { tone: 'ok', message: `${target.reference} confermata.${mail}` };
     }
   } else if (action === 'reject') {
     await db.update(bookings).set({ status: 'rejected', decidedAt: now, staffNote }).where(eq(bookings.id, id));
-    flash = { tone: 'ok', message: `${target.reference} rifiutata.` };
+    const mail = await tellOwner('rejected');
+    flash = { tone: 'ok', message: `${target.reference} rifiutata.${mail}` };
   } else if (action === 'cancel') {
     await db.update(bookings).set({ status: 'cancelled', decidedAt: now, staffNote }).where(eq(bookings.id, id));
-    flash = { tone: 'ok', message: `${target.reference} annullata.` };
+    const mail = await tellOwner('cancelled');
+    flash = { tone: 'ok', message: `${target.reference} annullata.${mail}` };
   } else if (action === 'intake-passed' || action === 'intake-failed') {
     await db
       .update(dogs)

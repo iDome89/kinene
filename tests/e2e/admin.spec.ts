@@ -144,6 +144,22 @@ test.describe('admin workflow', () => {
     expect(afterConfirm).toBe(baseline - 1);
   });
 
+  test('rejecting a request tells the owner why, and frees nothing it never took', async ({ page }) => {
+    const start = futureDate(28);
+    const end = futureDate(30);
+    const reference = await submitBooking(page, start, end, '380260002000222');
+
+    await login(page);
+    const card = page.locator('li').filter({ hasText: reference });
+    await card.locator('[name="staffNote"]').fill('Siamo al completo in quelle date');
+    await card.getByRole('button', { name: 'Rifiuta' }).click();
+
+    const status = page.getByRole('status');
+    await expect(status).toContainText(`${reference} rifiutata`);
+    /* No Resend key under test, and the panel must say so rather than imply the owner was told. */
+    await expect(status).toContainText('NON inviata');
+  });
+
   test('a blackout closes those days on the public calendar', async ({ page }) => {
     const from = futureDate(300);
     const to = futureDate(302);

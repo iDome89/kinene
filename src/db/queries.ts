@@ -78,6 +78,17 @@ export async function nextGalleryPosition(): Promise<number> {
   return rows.reduce((max, row) => Math.max(max, row.position), 0) + 1;
 }
 
+export async function findBookingWithOwner(id: number) {
+  const [row] = await db
+    .select({ booking: bookings, dog: dogs, owner: owners })
+    .from(bookings)
+    .innerJoin(dogs, eq(bookings.dogId, dogs.id))
+    .innerJoin(owners, eq(dogs.ownerId, owners.id))
+    .where(eq(bookings.id, id))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function listPublishedReviews() {
   return db
     .select()

@@ -110,6 +110,95 @@ export function ownerMessage(booking: BookingNotification): Message {
   };
 }
 
+export type Decision = 'confirmed' | 'rejected' | 'cancelled';
+
+export interface DecisionNotification {
+  readonly reference: string;
+  readonly service: ServiceId;
+  readonly startDay: number;
+  readonly endDay: number;
+  readonly priceCents: number;
+  readonly dogName: string;
+  readonly ownerName: string;
+  readonly ownerEmail: string;
+  readonly intakeTestPassed: boolean;
+  readonly staffNote: string;
+}
+
+export function decisionMessage(booking: DecisionNotification, decision: Decision): Message {
+  const definition = services[booking.service];
+  const when = [
+    `Riferimento: ${booking.reference}`,
+    `Servizio:    ${definition.name}`,
+    `Consegna:    ${formatDayIt(booking.startDay)} (${definition.checkInFrom}—${definition.checkInTo})`,
+    `Ritiro:      ${formatDayIt(booking.endDay)} (${definition.checkOutFrom}—${definition.checkOutTo})`,
+  ];
+
+  const signature = ['', `${business.tradeName} — ${business.contact.personName}`, business.contact.phoneDisplay];
+  const note = booking.staffNote ? ['', `Nota: ${booking.staffNote}`] : [];
+
+  if (decision === 'confirmed') {
+    return {
+      to: booking.ownerEmail,
+      subject: `Prenotazione confermata — ${booking.reference}`,
+      text: [
+        `Ciao ${booking.ownerName},`,
+        '',
+        `la prenotazione per ${booking.dogName} è confermata.`,
+        '',
+        ...when,
+        `Totale:      ${formatEuro(booking.priceCents)}, da saldare il giorno del check-in.`,
+        '',
+        'Cosa portare: libretto sanitario aggiornato, il cibo abituale con il misurino e, se vuoi,',
+        'una coperta o un gioco con l’odore di casa.',
+        ...(booking.intakeTestPassed
+          ? []
+          : [
+              '',
+              'Ricorda che il test d’ingresso è obbligatorio prima del primo soggiorno ed è gratuito:',
+              'contattaci per fissarlo se non l’hai ancora fatto.',
+            ]),
+        ...note,
+        ...signature,
+      ].join('\n'),
+    };
+  }
+
+  if (decision === 'rejected') {
+    return {
+      to: booking.ownerEmail,
+      subject: `Prenotazione non accettata — ${booking.reference}`,
+      text: [
+        `Ciao ${booking.ownerName},`,
+        '',
+        `purtroppo non possiamo accettare la richiesta per ${booking.dogName} nelle date indicate.`,
+        '',
+        ...when,
+        ...note,
+        '',
+        'Se vuoi provare con date diverse o capire meglio il motivo, scrivici o chiamaci: ne parliamo.',
+        ...signature,
+      ].join('\n'),
+    };
+  }
+
+  return {
+    to: booking.ownerEmail,
+    subject: `Prenotazione annullata — ${booking.reference}`,
+    text: [
+      `Ciao ${booking.ownerName},`,
+      '',
+      `la prenotazione per ${booking.dogName} è stata annullata.`,
+      '',
+      ...when,
+      ...note,
+      '',
+      'Se si tratta di un errore, contattaci: rimettiamo a posto.',
+      ...signature,
+    ].join('\n'),
+  };
+}
+
 export interface MailConfig {
   readonly apiKey: string | undefined;
   readonly from: string | undefined;
@@ -120,13 +209,13 @@ export interface MailConfig {
   Notifications must never cost a booking: the request is already committed when
   this runs, so every failure is logged and swallowed.
 */
-async function deliver(messages: readonly Message[], config: MailConfig, reference: string): Promise<void> {
+async function deliver(messages: readonly Message[], config: MailConfig, reference: string): Promise<number> {
   if (!config.apiKey || !config.from) {
     console.warn(
       `[notify] Resend non configurato: ${reference} salvata ma nessuna email inviata. ` +
         'Imposta RESEND_API_KEY, MAIL_FROM e NOTIFY_EMAIL.',
     );
-    return;
+    return 0;
   }
 
   const results = await Promise.allSettled(
@@ -141,6 +230,16 @@ async function deliver(messages: readonly Message[], config: MailConfig, referen
       );
     }
   });
+
+  return results.filter((result) => result.status === 'fulfilled').length;
+}
+
+export async function deliverDecision(
+  booking: DecisionNotification,
+  decision: Decision,
+  config: MailConfig,
+): Promise<boolean> {
+  return (await deliver([decisionMessage(booking, decision)], config, booking.reference)) > 0;
 }
 
 export async function deliverBooking(booking: BookingNotification, config: MailConfig): Promise<void> {

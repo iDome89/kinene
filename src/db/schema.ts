@@ -110,6 +110,27 @@ export const capacityOverrides = sqliteTable('capacity_overrides', {
   maxDogs: integer('max_dogs').notNull(),
 });
 
+export const galleryImages = sqliteTable(
+  'gallery_images',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    slug: text('slug').notNull(),
+    alt: text('alt').notNull(),
+    caption: text('caption'),
+    category: text('category', { enum: ['struttura', 'cani', 'allevamento'] })
+      .notNull()
+      .default('struttura'),
+    width: integer('width').notNull(),
+    height: integer('height').notNull(),
+    position: integer('position').notNull().default(0),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('gallery_images_slug_idx').on(table.slug),
+    index('gallery_images_order_idx').on(table.category, table.position),
+  ],
+);
+
 export const rateLimits = sqliteTable('rate_limits', {
   key: text('key').primaryKey(),
   windowStart: integer('window_start').notNull(),
@@ -121,3 +142,5 @@ export type Dog = typeof dogs.$inferSelect;
 export type Owner = typeof owners.$inferSelect;
 export type Blackout = typeof blackouts.$inferSelect;
 export type EmergencyContactRow = typeof emergencyContacts.$inferSelect;
+export type GalleryImage = typeof galleryImages.$inferSelect;
+export type GalleryCategory = GalleryImage['category'];

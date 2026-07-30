@@ -2,29 +2,40 @@
 import '@/styles/global.css';
 import Header from '@/components/Header.astro';
 import Footer from '@/components/Footer.astro';
-import { business, openingHours } from '@/config/business';
+import { business, openingHours, serviceList } from '@/config/business';
 import { fullAddress } from '@/lib/links';
 
 interface Props {
   title: string;
   description: string;
   noindex?: boolean;
+  /* Use verbatim instead of appending the brand — for the home page, which needs its own keywords. */
+  fullTitle?: string;
   breadcrumb?: readonly { name: string; href: string }[];
 }
 
-const { title, description, noindex = false, breadcrumb } = Astro.props;
+const { title, description, noindex = false, fullTitle, breadcrumb } = Astro.props;
 
-const pageTitle = title === business.tradeName ? title : `${title} · ${business.tradeName}`;
+const pageTitle = fullTitle ?? `${title} · ${business.tradeName}`;
+const ogImage = new URL('/og-image.png', Astro.site ?? 'https://kinene.it').href;
 const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://kinene.it').href;
+
+const siteOrigin = Astro.site?.href.replace(/\/$/, '') ?? 'https://kinene.it';
 
 const localBusiness = {
   '@context': 'https://schema.org',
-  '@type': 'AnimalShelter',
-  additionalType: 'https://schema.org/PetStore',
-  '@id': `${Astro.site ?? 'https://kinene.it'}#business`,
+  '@type': 'LocalBusiness',
+  '@id': `${siteOrigin}/#business`,
   name: business.tradeName,
   legalName: business.legalName,
-  description,
+  description:
+    'Pensione, asilo diurno e asilo notturno per cani a Guiglia (MO), gestiti da un’addestratrice cinofila. Allevamento di Cane Corso.',
+  image: ogImage,
+  logo: new URL('/icon-512.png', siteOrigin).href,
+  priceRange: '€€',
+  currenciesAccepted: 'EUR',
+  paymentAccepted: 'Contanti',
+  knowsLanguage: 'it',
   url: Astro.site?.href ?? 'https://kinene.it',
   telephone: business.contact.phone,
   ...(business.contact.email ? { email: business.contact.email } : {}),
@@ -46,22 +57,29 @@ const localBusiness = {
     { '@type': 'AdministrativeArea', name: 'Provincia di Modena' },
     { '@type': 'AdministrativeArea', name: 'Emilia-Romagna' },
   ],
-  openingHoursSpecification: [
-    ...openingHours.weekdays.slots.map((slot) => ({
-      '@type': 'OpeningHoursSpecification',
-      dayOfWeek: openingHours.weekdays.schemaDays,
-      opens: slot.from,
-      closes: slot.to,
-    })),
-    {
-      '@type': 'OpeningHoursSpecification',
-      dayOfWeek: openingHours.weekend.schemaDays,
-      opens: '00:00',
-      closes: '00:00',
-      description: 'Solo su appuntamento',
-    },
-  ],
+  /* Weekend is by appointment only, so those days are omitted: an absent day means closed. */
+  openingHoursSpecification: openingHours.weekdays.slots.map((slot) => ({
+    '@type': 'OpeningHoursSpecification',
+    dayOfWeek: openingHours.weekdays.schemaDays,
+    opens: slot.from,
+    closes: slot.to,
+  })),
   sameAs: [business.contact.instagramUrl],
+  hasOfferCatalog: {
+    '@type': 'OfferCatalog',
+    name: 'Servizi per cani',
+    itemListElement: serviceList.map((service) => ({
+      '@type': 'Offer',
+      itemOffered: { '@type': 'Service', name: service.name, serviceType: service.name },
+      price: (service.priceCents / 100).toFixed(2),
+      priceCurrency: 'EUR',
+      eligibleDuration: {
+        '@type': 'QuantitativeValue',
+        maxValue: service.maxUnits,
+        unitCode: service.priceUnit === 'notte' ? 'DAY' : 'DAY',
+      },
+    })),
+  },
 };
 
 const breadcrumbSchema = breadcrumb && {
@@ -92,13 +110,20 @@ const breadcrumbSchema = breadcrumb && {
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:locale" content="it_IT" />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Kinene — pensione e asilo per cani a Guiglia, Appennino modenese" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content={ogImage} />
 
     <meta name="theme-color" content="#42502f" />
     <meta name="geo.region" content="IT-MO" />
     <meta name="geo.placename" content={business.address.locality} />
 
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/favicon-180.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <link rel="sitemap" href="/sitemap-index.xml" />
 
     <script type="application/ld+json" set:html={JSON.stringify(localBusiness)} is:inline />

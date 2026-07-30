@@ -8,7 +8,15 @@ export default defineConfig({
   site: 'https://kinene.it',
   output: 'static',
   adapter: node({ mode: 'standalone' }),
-  integrations: [preact({ compat: false }), sitemap()],
+  integrations: [
+    preact({ compat: false }),
+    sitemap({
+      filter: (page) =>
+        !/\/(admin|prenota|allevamento)(\/|$)/.test(new URL(page).pathname),
+      changefreq: 'monthly',
+      lastmod: new Date('2026-07-30'),
+    }),
+  ],
   vite: { plugins: [tailwindcss()] },
   image: { responsiveStyles: true },
   /*

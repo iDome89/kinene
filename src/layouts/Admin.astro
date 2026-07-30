@@ -4,7 +4,7 @@ import Logo from '@/components/Logo.astro';
 
 interface Props {
   title: string;
-  active?: 'richieste' | 'calendario' | 'chiusure';
+  active?: 'richieste' | 'calendario' | 'chiusure' | 'galleria';
 }
 
 const { title, active } = Astro.props;
@@ -13,6 +13,7 @@ const nav = [
   { key: 'richieste', href: '/admin', label: 'Richieste' },
   { key: 'calendario', href: '/admin/calendario', label: 'Calendario' },
   { key: 'chiusure', href: '/admin/chiusure', label: 'Chiusure e capienza' },
+  { key: 'galleria', href: '/admin/galleria', label: 'Galleria' },
 ] as const;
 ---
 
@@ -23,7 +24,7 @@ const nav = [
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
     <title>{title} · Kinene admin</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
   </head>
   <body class="flex min-h-dvh flex-col bg-surface-sunken">
     <header class="border-b border-edge bg-surface-raised">

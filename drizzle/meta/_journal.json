@@ -15,6 +15,13 @@
       "when": 1785408540156,
       "tag": "0001_salty_spencer_smythe",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785410922440,
+      "tag": "0002_lyrical_grandmaster",
+      "breakpoints": true
     }
   ]
 }

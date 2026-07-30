@@ -32,7 +32,7 @@ export interface NavItem {
 export const primaryNav: readonly NavItem[] = [
   { href: '/servizi/pensione', label: 'Servizi' },
   { href: '/prezzi', label: 'Prezzi' },
-  { href: '/allevamento', label: 'Allevamento' },
+  { href: '/galleria', label: 'Galleria' },
   { href: '/chi-siamo', label: 'Chi siamo' },
   { href: '/contatti', label: 'Contatti' },
 ];
@@ -51,7 +51,7 @@ export const footerNav: readonly { title: string; items: readonly NavItem[] }[] 
     title: 'Struttura',
     items: [
       { href: '/chi-siamo', label: 'Chi siamo' },
-      { href: '/allevamento', label: 'Allevamento Cane Corso' },
+      { href: '/galleria', label: 'Galleria' },
       { href: '/prezzi', label: 'Prezzi e disdette' },
       { href: '/regolamento', label: 'Regolamento interno' },
     ],

@@ -32,7 +32,7 @@ test('the mobile menu opens and exposes every primary link', async ({ page }) =>
   await page.getByLabel('Apri il menu').click();
 
   const nav = page.locator('details[open] nav');
-  for (const label of ['Servizi', 'Prezzi', 'Allevamento', 'Chi siamo', 'Contatti']) {
+  for (const label of ['Servizi', 'Prezzi', 'Galleria', 'Chi siamo', 'Contatti']) {
     await expect(nav.getByRole('link', { name: label })).toBeVisible();
   }
 });

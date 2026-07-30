@@ -29,7 +29,7 @@ export const business = {
   },
 
   capacity: {
-    defaultMaxDogs: 8,
+    defaultMaxDogs: 5,
     closedWeekdays: [] as number[],
   },
 } as const;
@@ -152,6 +152,14 @@ export const policy = {
   requiredCommands: ['vieni', 'siedi', 'resta', 'terra'],
   requiredVaccinations: ['Eptavalente', 'Tosse dei canili (Bordetella)'],
 } as const;
+
+export const galleryCategories = [
+  { id: 'struttura', label: 'La struttura' },
+  { id: 'cani', label: 'I nostri ospiti' },
+  { id: 'allevamento', label: 'Allevamento' },
+] as const;
+
+export type GalleryCategoryId = (typeof galleryCategories)[number]['id'];
 
 export const highSeason = {
   august: { fromMonth: 8, fromDay: 1, toMonth: 8, toDay: 31 },

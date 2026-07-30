@@ -9,7 +9,7 @@ const PUBLIC_PAGES = [
   '/prezzi',
   '/regolamento',
   '/chi-siamo',
-  '/allevamento',
+  '/galleria',
   '/test-di-ingresso',
   '/contatti',
   '/privacy',

@@ -33,6 +33,7 @@ export default defineConfig({
       HOST: '127.0.0.1',
       PORT: String(PORT),
       DATABASE_URL: 'file:./data/e2e.db',
+      UPLOAD_DIR: './data/e2e-uploads',
       SESSION_SECRET: 'e2e-secret-0123456789abcdef0123456789abcdef',
       ADMIN_PASSWORD_HASH:
         'scrypt.764d810bb349a681334ec06f0b48080b.639ad251e6c14ba3cbfac801901ba20bc2e5f740c6bfbfc5f77829c127a61740',

@@ -10,7 +10,7 @@ import { formatEuro } from '@/lib/pricing';
 import { fullAddress, mapsLink, telLink, whatsappLink } from '@/lib/links';
 
 const description =
-  'Pensione, asilo diurno e notturno per cani a Guiglia, sull’Appennino modenese. Addestratrice cinofila, ampi spazi verdi, socializzazione controllata. Allevamento di Cane Corso.';
+  'Pensione e asilo per cani a Guiglia (MO), sull’Appennino modenese. Gestiti da un’addestratrice cinofila, con ampi spazi verdi e gruppi selezionati. Niente box.';
 
 const strengths = [
   {
@@ -100,7 +100,11 @@ const faqs = [
 const cheapest = serviceList.reduce((min, service) => (service.priceCents < min.priceCents ? service : min));
 ---
 
-<Base title={business.tradeName} description={description}>
+<Base
+  title={business.tradeName}
+  fullTitle="Kinene — Pensione e asilo per cani a Guiglia (MO)"
+  description={description}
+>
   <Fragment slot="head">
     <script
       type="application/ld+json"
@@ -298,12 +302,10 @@ const cheapest = serviceList.reduce((min, service) => (service.priceCents < min.
           dei nostri riproduttori la applichiamo alla gestione quotidiana degli ospiti: conoscenza della
           razza, lettura del comportamento, gestione dei gruppi.
         </p>
-        <div class="mt-8">
-          <Button href="/allevamento" variant="outline" size="lg" class="!border-white/35 !text-inverse hover:!bg-white/10">
-            Scopri l’allevamento
-            <Icon name="arrow-right" size={18} />
-          </Button>
-        </div>
+        <p class="mt-8 inline-flex items-center gap-2 rounded-full border border-white/30 px-4 py-2 text-sm font-medium">
+          <Icon name="clock" size={16} />
+          La sezione allevamento arriva presto
+        </p>
       </div>
     </div>
   </Section>

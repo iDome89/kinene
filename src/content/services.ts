@@ -1,4 +1,7 @@
-import type { ServiceId } from '@/config/business';
+import { services, type ServiceId } from '@/config/business';
+
+const checkIn = (id: ServiceId) => `${services[id].checkInFrom}—${services[id].checkInTo}`;
+const checkOut = (id: ServiceId) => `${services[id].checkOutFrom}—${services[id].checkOutTo}`;
 
 export interface ServiceCopy {
   readonly metaTitle: string;
@@ -14,7 +17,7 @@ export const serviceCopy: Readonly<Record<ServiceId, ServiceCopy>> = {
   'asilo-diurno': {
     metaTitle: 'Asilo diurno per cani',
     metaDescription:
-      'Asilo diurno per cani a Guiglia (MO): il tuo cane trascorre la giornata in gruppi selezionati, con gioco, socializzazione controllata e riposo. Ingresso 10:00—12:00, uscita 18:00—20:00.',
+      'Asilo diurno per cani a Guiglia (MO): giornata in gruppi selezionati, gioco, socializzazione controllata e riposo. Consegna 07:00—12:00, ritiro 14:00—20:00.',
     lead:
       'Una giornata strutturata, non un parcheggio. Il cane entra la mattina, trova un gruppo compatibile con il suo carattere e rientra a casa la sera stanco nel modo giusto.',
     forWho: [
@@ -23,11 +26,11 @@ export const serviceCopy: Readonly<Record<ServiceId, ServiceCopy>> = {
       'Chi sta rieducando un cane che tira o si annoia in casa',
     ],
     dayInTheLife: [
-      { time: '10:00—12:00', what: 'Ingresso scaglionato, così ogni arrivo è gestito senza confusione al cancello.' },
+      { time: checkIn('asilo-diurno'), what: 'Ingresso scaglionato, così ogni arrivo è gestito senza confusione al cancello.' },
       { time: 'Mattina', what: 'Uscita nelle aree recintate, attività di movimento e lavoro di gruppo.' },
       { time: 'Metà giornata', what: 'Riposo obbligatorio. Un cane che non stacca mai diventa un cane sovraeccitato.' },
       { time: 'Pomeriggio', what: 'Gioco, olfattivo, esercizi di autocontrollo con i comandi di base.' },
-      { time: '18:00—20:00', what: 'Uscita. Ti raccontiamo com’è andata la giornata, comportamento incluso.' },
+      { time: checkOut('asilo-diurno'), what: 'Uscita. Ti raccontiamo com’è andata la giornata, comportamento incluso.' },
     ],
     included: [
       'Inserimento in un gruppo selezionato per carattere, taglia ed energia',
@@ -38,14 +41,14 @@ export const serviceCopy: Readonly<Record<ServiceId, ServiceCopy>> = {
     ],
     notes: [
       'L’asilo diurno non prevede pernottamento: se ti servono anche le notti, guarda l’asilo notturno o la pensione.',
-      'Puoi prenotare più giornate consecutive: ogni giornata viene conteggiata singolarmente.',
+      'Ogni prenotazione copre una singola giornata. Per più giorni di fila invia una richiesta per ciascuno.',
     ],
   },
 
   'asilo-notturno': {
     metaTitle: 'Asilo notturno per cani',
     metaDescription:
-      'Asilo notturno per cani a Guiglia (MO): consegna dalle 18:00 alle 20:00 e ritiro il mattino successivo dalle 10:00 alle 12:00. Una notte sola, gestita da un’addestratrice cinofila.',
+      'Asilo notturno per cani a Guiglia (MO): consegna 16:00—20:00, ritiro il mattino dopo 07:00—12:00. Una notte sola, seguita da un’addestratrice cinofila.',
     lead:
       'Per l’imprevisto, il turno di notte, la cena fuori città. Consegni la sera e ritiri la mattina dopo, senza dover organizzare un soggiorno intero.',
     forWho: [
@@ -54,11 +57,11 @@ export const serviceCopy: Readonly<Record<ServiceId, ServiceCopy>> = {
       'Chi vuole testare come reagisce il proprio cane a una notte fuori, prima di prenotare una pensione',
     ],
     dayInTheLife: [
-      { time: '18:00—20:00', what: 'Consegna. Ci lasci il cibo della cena e della colazione, e la sua coperta se vuoi.' },
+      { time: checkIn('asilo-notturno'), what: 'Consegna. Ci lasci il cibo della cena e della colazione, e la sua coperta se vuoi.' },
       { time: 'Sera', what: 'Ultima uscita, cena secondo i tuoi orari, decompressione.' },
       { time: 'Notte', what: 'Riposo in spazio dedicato. Nessuna promiscuità notturna tra cani che non si conoscono.' },
       { time: 'Mattina', what: 'Uscita, colazione, movimento.' },
-      { time: '10:00—12:00', what: 'Ritiro, con il resoconto della notte.' },
+      { time: checkOut('asilo-notturno'), what: 'Ritiro, con il resoconto della notte.' },
     ],
     included: [
       'Una notte con sistemazione dedicata',
@@ -68,14 +71,14 @@ export const serviceCopy: Readonly<Record<ServiceId, ServiceCopy>> = {
     ],
     notes: [
       'L’asilo notturno copre esattamente una notte. Per più notti consecutive la formula corretta è la pensione.',
-      'Il ritiro avviene sempre il mattino successivo alla consegna, entro le 12:00.',
+      'Il ritiro avviene sempre il mattino successivo alla consegna, entro le ore 12:00.',
     ],
   },
 
   pensione: {
     metaTitle: 'Pensione per cani',
     metaDescription:
-      'Pensione per cani a Guiglia (MO), soggiorni fino a 14 notti. Ampi spazi verdi, routine personalizzate, gestione da addestratrice cinofila. Check-in entro le 12:00.',
+      'Pensione per cani a Guiglia (MO), fino a 14 notti. Ampi spazi verdi, routine personalizzate, gestione di un’addestratrice cinofila. Niente box.',
     lead:
       'Soggiorni fino a due settimane. Non andiamo oltre di proposito: oltre quel limite un cane ha bisogno della sua famiglia, non di una struttura, per quanto buona sia.',
     forWho: [

@@ -1,0 +1,111 @@
+---
+import Base from '@/layouts/Base.astro';
+import PageHero from '@/components/PageHero.astro';
+import Section from '@/components/Section.astro';
+import Button from '@/components/Button.astro';
+import Icon from '@/components/Icon.astro';
+import { galleryCategories } from '@/config/business';
+import { listGallery } from '@/db/queries';
+import { largestWidth, mediaFileName, srcSetFor } from '@/lib/media';
+import { whatsappLink } from '@/lib/links';
+
+export const prerender = false;
+
+const description =
+  'Le foto della struttura Kinene a Guiglia (MO): aree verdi recintate, zone di riposo e i cani che ospitiamo.';
+
+const breadcrumb = [
+  { name: 'Home', href: '/' },
+  { name: 'Galleria', href: '/galleria' },
+];
+
+const images = await listGallery();
+const grouped = galleryCategories
+  .map((category) => ({ ...category, images: images.filter((image) => image.category === category.id) }))
+  .filter((group) => group.images.length > 0);
+---
+
+<Base title="Galleria" description={description} breadcrumb={breadcrumb}>
+  <PageHero
+    eyebrow="Galleria"
+    title="Dove dorme e dove gioca il tuo cane"
+    lead="Gli spazi sono quelli che vedi. Se vuoi vederli di persona, il test d’ingresso è gratuito."
+    breadcrumb={breadcrumb}
+  />
+
+  {
+    images.length === 0 ? (
+      <Section>
+        <div class="mx-auto max-w-xl rounded-[var(--radius-card)] border border-dashed border-edge-strong p-12 text-center">
+          <Icon name="leaf" size={30} class="mx-auto text-primary opacity-60" />
+          <h2 class="mt-5 font-display text-xl font-semibold">Le foto arrivano presto</h2>
+          <p class="mt-3 text-sm leading-relaxed text-muted">
+            Stiamo preparando la galleria. Nel frattempo puoi vedere la struttura di persona: fissa il test
+            d’ingresso, è gratuito e senza impegno.
+          </p>
+          <div class="mt-7 flex flex-wrap justify-center gap-3">
+            <Button href="/test-di-ingresso" variant="accent">Fissa il test d’ingresso</Button>
+            <Button
+              href={whatsappLink('Ciao Kinene, posso vedere qualche foto della struttura?')}
+              variant="outline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Icon name="whatsapp" size={17} />
+              Chiedi su WhatsApp
+            </Button>
+          </div>
+        </div>
+      </Section>
+    ) : (
+      grouped.map((group, index) => (
+        <Section tone={index % 2 === 1 ? 'sunken' : 'plain'} labelledby={`gallery-${group.id}`}>
+          <h2 id={`gallery-${group.id}`} class="font-display text-2xl font-semibold">
+            {group.label}
+          </h2>
+
+          <ul class="mt-8 grid list-none grid-cols-1 gap-5 p-0 sm:grid-cols-2 lg:grid-cols-3">
+            {group.images.map((image, position) => (
+              <li class="overflow-hidden rounded-[var(--radius-card)] border border-edge bg-surface-raised">
+                <img
+                  src={`/media/${mediaFileName(image.slug, largestWidth(image.width))}`}
+                  srcset={srcSetFor(image.slug, image.width)}
+                  sizes="(min-width: 1024px) 24rem, (min-width: 640px) 45vw, 92vw"
+                  width={image.width}
+                  height={image.height}
+                  alt={image.alt}
+                  loading={index === 0 && position < 3 ? 'eager' : 'lazy'}
+                  decoding="async"
+                  class="h-full w-full object-cover"
+                  style="aspect-ratio: 4 / 3"
+                />
+                {image.caption && (
+                  <p class="m-0 border-t border-edge px-4 py-3 text-sm text-muted">{image.caption}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      ))
+    )
+  }
+
+  {
+    images.length > 0 && (
+      <Section tone="sunken">
+        <div class="flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
+          <div>
+            <h2 class="font-display text-2xl font-semibold">Vieni a vederli dal vivo</h2>
+            <p class="m-0 mt-2 max-w-xl text-sm leading-relaxed text-muted">
+              Nessuna foto sostituisce una visita. Il test d’ingresso è gratuito e serve anche a te.
+            </p>
+          </div>
+          <Button href="/test-di-ingresso" variant="accent" size="lg" class="shrink-0">
+            Fissa il test d’ingresso
+            <Icon name="arrow-right" size={18} />
+          </Button>
+        </div>
+      </Section>
+    )
+  }
+</Base>

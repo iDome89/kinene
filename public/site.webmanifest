@@ -1,0 +1,15 @@
+{
+  "name": "Kinene — Pensione e asilo per cani",
+  "short_name": "Kinene",
+  "description": "Pensione, asilo diurno e notturno per cani a Guiglia (MO).",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f5ef",
+  "theme_color": "#42502f",
+  "lang": "it",
+  "icons": [
+    { "src": "/favicon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

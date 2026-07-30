@@ -1,0 +1,314 @@
+---
+import Admin from '@/layouts/Admin.astro';
+import Icon from '@/components/Icon.astro';
+import { db } from '@/db/client';
+import { galleryImages } from '@/db/schema';
+import { listGallery, nextGalleryPosition } from '@/db/queries';
+import { eq } from 'drizzle-orm';
+import { galleryCategories, type GalleryCategoryId } from '@/config/business';
+import { MAX_UPLOAD_BYTES, REJECTION_MESSAGES, checkUpload, mediaFileName, srcSetFor } from '@/lib/media';
+import { deleteImage, storeImage } from '@/lib/storage';
+
+export const prerender = false;
+
+let flash: { tone: 'ok' | 'error'; message: string } | null = null;
+
+const isCategory = (value: string): value is GalleryCategoryId =>
+  galleryCategories.some((category) => category.id === value);
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') ?? '');
+
+  if (action === 'upload') {
+    const files = form.getAll('photos').filter((entry): entry is File => entry instanceof File);
+    const alt = String(form.get('alt') ?? '').trim();
+    const caption = String(form.get('caption') ?? '').trim() || null;
+    const rawCategory = String(form.get('category') ?? 'struttura');
+    const category: GalleryCategoryId = isCategory(rawCategory) ? rawCategory : 'struttura';
+
+    const usable = files.filter((file) => file.size > 0);
+
+    if (usable.length === 0) {
+      flash = { tone: 'error', message: 'Seleziona almeno una foto.' };
+    } else {
+      let stored = 0;
+      const failures: string[] = [];
+      let position = await nextGalleryPosition();
+
+      for (const file of usable) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const check = checkUpload({ bytes, alt });
+
+        if (!check.ok) {
+          failures.push(`${file.name}: ${REJECTION_MESSAGES[check.reason]}`);
+          continue;
+        }
+
+        try {
+          const image = await storeImage(bytes);
+          await db.insert(galleryImages).values({
+            slug: image.slug,
+            alt,
+            caption,
+            category,
+            width: image.width,
+            height: image.height,
+            position: position + stored,
+            createdAt: Date.now(),
+          });
+          stored += 1;
+        } catch {
+          failures.push(`${file.name}: immagine illeggibile.`);
+        }
+      }
+
+      if (stored > 0 && failures.length === 0) {
+        flash = { tone: 'ok', message: `${stored} ${stored === 1 ? 'foto caricata' : 'foto caricate'}.` };
+      } else if (stored > 0) {
+        flash = { tone: 'error', message: `${stored} caricate. ${failures.join(' ')}` };
+      } else {
+        flash = { tone: 'error', message: failures.join(' ') };
+      }
+    }
+  } else if (action === 'update') {
+    const id = Number(form.get('id'));
+    const rawCategory = String(form.get('category') ?? 'struttura');
+    await db
+      .update(galleryImages)
+      .set({
+        alt: String(form.get('alt') ?? '').trim() || 'Foto Kinene',
+        caption: String(form.get('caption') ?? '').trim() || null,
+        category: isCategory(rawCategory) ? rawCategory : 'struttura',
+        position: Number(form.get('position')) || 0,
+      })
+      .where(eq(galleryImages.id, id));
+    flash = { tone: 'ok', message: 'Foto aggiornata.' };
+  } else if (action === 'delete') {
+    const id = Number(form.get('id'));
+    const [target] = await db.select().from(galleryImages).where(eq(galleryImages.id, id)).limit(1);
+    if (target) {
+      await deleteImage(target.slug);
+      await db.delete(galleryImages).where(eq(galleryImages.id, id));
+      flash = { tone: 'ok', message: 'Foto eliminata.' };
+    }
+  }
+}
+
+const images = await listGallery();
+const countByCategory = galleryCategories.map((category) => ({
+  ...category,
+  count: images.filter((image) => image.category === category.id).length,
+}));
+
+const inputClass =
+  'mt-1.5 block min-h-11 w-full rounded-lg border border-edge-strong bg-surface px-3.5 outline-none transition-colors focus:border-accent';
+---
+
+<Admin title="Galleria" active="galleria">
+  {
+    flash && (
+      <p
+        role="status"
+        class:list={[
+          'mb-8 rounded-[var(--radius-card)] border p-4 text-sm',
+          flash.tone === 'ok'
+            ? 'border-ok/35 bg-surface-tint text-ok'
+            : 'border-danger/35 bg-danger-surface text-danger',
+        ]}
+      >
+        {flash.message}
+      </p>
+    )
+  }
+
+  <div class="grid gap-10 xl:grid-cols-[0.8fr_1.2fr]">
+    <section>
+      <h1 class="font-display text-2xl font-semibold">Carica foto</h1>
+      <p class="mt-2 text-sm text-muted">
+        JPG, PNG, WebP o HEIC, fino a {Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB ciascuna. Le immagini
+        vengono ridimensionate e convertite in WebP automaticamente.
+      </p>
+
+      <form
+        method="POST"
+        enctype="multipart/form-data"
+        class="mt-6 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6"
+      >
+        <input type="hidden" name="action" value="upload" />
+
+        <div>
+          <label class="block text-sm font-medium" for="photos">Foto</label>
+          <input
+            id="photos"
+            class={`${inputClass} py-2.5 file:mr-3 file:rounded-full file:border-0 file:bg-primary file:px-4 file:py-1.5 file:text-sm file:text-on-primary`}
+            type="file"
+            name="photos"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+            multiple
+            required
+          />
+          <span class="mt-1 block text-xs text-muted">Puoi selezionarne più di una.</span>
+        </div>
+
+        <div class="mt-4">
+          <label class="block text-sm font-medium" for="alt">
+            Descrizione <span aria-hidden="true">*</span>
+          </label>
+          <input id="alt" class={inputClass} type="text" name="alt" required maxlength="160" />
+          <span class="mt-1 block text-xs text-muted">
+            Cosa si vede nella foto. Serve a chi usa un lettore di schermo e a Google.
+          </span>
+        </div>
+
+        <div class="mt-4">
+          <label class="block text-sm font-medium" for="caption">Didascalia</label>
+          <input id="caption" class={inputClass} type="text" name="caption" maxlength="200" />
+          <span class="mt-1 block text-xs text-muted">Facoltativa, mostrata sotto la foto.</span>
+        </div>
+
+        <div class="mt-4">
+          <label class="block text-sm font-medium" for="category">Sezione</label>
+          <select id="category" class={inputClass} name="category">
+            {galleryCategories.map((category) => <option value={category.id}>{category.label}</option>)}
+          </select>
+        </div>
+
+        <button
+          type="submit"
+          class="mt-6 inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-5 text-sm font-medium text-on-accent transition-colors hover:bg-accent-hover"
+        >
+          <Icon name="arrow-right" size={17} />
+          Carica
+        </button>
+      </form>
+
+      <dl class="mt-8 grid grid-cols-3 gap-3">
+        {
+          countByCategory.map((category) => (
+            <div class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-4">
+              <dt class="text-xs uppercase tracking-wide text-muted">{category.label}</dt>
+              <dd class="m-0 mt-1 font-display text-2xl font-semibold tabular-nums">{category.count}</dd>
+            </div>
+          ))
+        }
+      </dl>
+    </section>
+
+    <section>
+      <h2 class="font-display text-2xl font-semibold">
+        Foto pubblicate
+        <span class="font-sans text-base font-normal text-muted"> · {images.length}</span>
+      </h2>
+
+      {
+        images.length === 0 ? (
+          <p class="mt-6 rounded-[var(--radius-card)] border border-dashed border-edge-strong p-10 text-center text-muted">
+            Nessuna foto. La pagina pubblica mostra un messaggio di cortesia finché non ne carichi una.
+          </p>
+        ) : (
+          <ul class="mt-6 flex list-none flex-col gap-4 p-0">
+            {images.map((image) => (
+              <li class="flex flex-col gap-4 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-4 sm:flex-row">
+                <img
+                  src={`/media/${mediaFileName(image.slug, 400)}`}
+                  srcset={srcSetFor(image.slug, image.width)}
+                  sizes="12rem"
+                  alt={image.alt}
+                  width="192"
+                  height="144"
+                  loading="lazy"
+                  decoding="async"
+                  class="w-full shrink-0 rounded-lg object-cover sm:w-48"
+                  style="aspect-ratio: 4 / 3"
+                />
+
+                <form method="POST" class="min-w-0 flex-1">
+                  <input type="hidden" name="action" value="update" />
+                  <input type="hidden" name="id" value={image.id} />
+
+                  <div class="grid gap-3 sm:grid-cols-2">
+                    <div class="sm:col-span-2">
+                      <label class="block text-xs font-medium text-muted" for={`alt-${image.id}`}>
+                        Descrizione
+                      </label>
+                      <input
+                        id={`alt-${image.id}`}
+                        class={inputClass}
+                        type="text"
+                        name="alt"
+                        value={image.alt}
+                        maxlength="160"
+                      />
+                    </div>
+                    <div class="sm:col-span-2">
+                      <label class="block text-xs font-medium text-muted" for={`caption-${image.id}`}>
+                        Didascalia
+                      </label>
+                      <input
+                        id={`caption-${image.id}`}
+                        class={inputClass}
+                        type="text"
+                        name="caption"
+                        value={image.caption ?? ''}
+                        maxlength="200"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-medium text-muted" for={`category-${image.id}`}>
+                        Sezione
+                      </label>
+                      <select id={`category-${image.id}`} class={inputClass} name="category">
+                        {galleryCategories.map((category) => (
+                          <option value={category.id} selected={category.id === image.category}>
+                            {category.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-medium text-muted" for={`position-${image.id}`}>
+                        Ordine
+                      </label>
+                      <input
+                        id={`position-${image.id}`}
+                        class={inputClass}
+                        type="number"
+                        name="position"
+                        value={image.position}
+                        min="0"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="submit"
+                      class="min-h-11 rounded-full bg-primary px-4 text-sm font-medium text-on-primary transition-colors hover:bg-primary-hover"
+                    >
+                      Salva
+                    </button>
+                    <span class="text-xs tabular-nums text-muted">
+                      {image.width}×{image.height}
+                    </span>
+                  </div>
+                </form>
+
+                <form method="POST" class="shrink-0">
+                  <input type="hidden" name="action" value="delete" />
+                  <input type="hidden" name="id" value={image.id} />
+                  <button
+                    type="submit"
+                    class="min-h-11 rounded-full border border-danger/40 px-4 text-sm font-medium text-danger transition-colors hover:bg-danger-surface"
+                  >
+                    Elimina
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </section>
+  </div>
+</Admin>

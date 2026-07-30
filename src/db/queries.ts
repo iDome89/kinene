@@ -1,6 +1,15 @@
 import { and, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
 import { db } from './client';
-import { blackouts, bookings, capacityOverrides, dogs, emergencyContacts, owners, rateLimits } from './schema';
+import {
+  blackouts,
+  bookings,
+  capacityOverrides,
+  dogs,
+  emergencyContacts,
+  galleryImages,
+  owners,
+  rateLimits,
+} from './schema';
 import { buildOccupancy, type DaySpan, type OccupancyGrid } from '@/lib/availability';
 import { business } from '@/config/business';
 
@@ -57,6 +66,15 @@ export async function contactsForBookings(bookingIds: readonly number[]) {
     else byBooking.set(row.bookingId, [row]);
   }
   return byBooking;
+}
+
+export async function listGallery() {
+  return db.select().from(galleryImages).orderBy(galleryImages.position, galleryImages.id);
+}
+
+export async function nextGalleryPosition(): Promise<number> {
+  const rows = await db.select({ position: galleryImages.position }).from(galleryImages);
+  return rows.reduce((max, row) => Math.max(max, row.position), 0) + 1;
 }
 
 export async function findDogByMicrochip(microchip: string) {
@@ -131,5 +149,5 @@ export async function consumeRateLimit(key: string, limit: number, now: number):
   return true;
 }
 
-export { db, bookings, dogs, owners, blackouts, capacityOverrides, emergencyContacts };
+export { db, bookings, dogs, owners, blackouts, capacityOverrides, emergencyContacts, galleryImages };
 export { and, eq, gte, lt, lte, or, inArray };

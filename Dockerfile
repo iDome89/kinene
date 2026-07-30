@@ -13,12 +13,13 @@ WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=4321 \
-    DATABASE_URL=file:/data/kinene.db
+    DATABASE_URL=file:/data/kinene.db \
+    UPLOAD_DIR=/data/uploads
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends tini \
   && rm -rf /var/lib/apt/lists/* \
-  && mkdir -p /data \
+  && mkdir -p /data/uploads \
   && chown -R node:node /data
 
 COPY --from=build --chown=node:node /app/node_modules ./node_modules

@@ -17,7 +17,7 @@
     "db:seed": "tsx --env-file-if-exists=.env scripts/seed.ts",
     "tokens:verify": "tsx scripts/verify-contrast.ts",
     "auth:hash": "tsx scripts/hash-password.ts",
-    "lock:refresh": "rm -rf node_modules package-lock.json && npm install && npm ci --dry-run"
+    "lock:refresh": "sh scripts/lock-refresh.sh"
   },
   "dependencies": {
     "@astrojs/node": "^11.0.3",

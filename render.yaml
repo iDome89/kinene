@@ -32,3 +32,12 @@ services:
         sync: false
       - key: NOTIFY_EMAIL
         sync: false
+      - key: SMTP_HOST
+        value: smtp.mail.me.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      # Password per app di iCloud, non la password dell'account.
+      - key: SMTP_PASS
+        sync: false

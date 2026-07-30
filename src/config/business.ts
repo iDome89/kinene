@@ -4,6 +4,7 @@ export const business = {
   legalName: 'Kinene di Valeria Borda',
   tradeName: 'Kinene',
   tagline: 'Allevamento Cane Corso',
+  /* Nessuna P.IVA al momento: footer, informativa e schema la omettono finché resta vuota. */
   vatNumber: '',
   reaNumber: '',
 
@@ -12,7 +13,7 @@ export const business = {
     phone: '+393513458298',
     phoneDisplay: '351 345 8298',
     whatsapp: '393513458298',
-    email: '',
+    email: 'valeria.borda@icloud.com',
     instagram: 'kinene_breeder',
     instagramUrl: 'https://instagram.com/kinene_breeder',
   },

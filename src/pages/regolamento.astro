@@ -58,6 +58,10 @@ const requirements = [
     body: `Vanno indicati almeno ${policy.minEmergencyContacts} contatti di emergenza, ciascuno con nome, cognome e numero di telefono. Devono essere persone raggiungibili e in grado di venire a prendere il cane qualora il proprietario non fosse reperibile.`,
   },
   {
+    title: 'Mancato ritiro e abbandono',
+    body: `Il proprietario si impegna a ritirare il cane entro l’orario del giorno stabilito. Si fa presente che ai sensi dell’${policy.abandonmentLaw} l’abbandono di animali domestici costituisce un reato punibile per legge. Qualora il cane non venga ritirato al termine del soggiorno e i proprietari, compresi i contatti di emergenza, risultino irreperibili e non rintracciabili entro un periodo superiore a ${policy.unreachableReportDays} giorni, la Dog Sitter sarà obbligata a denunciare l’accaduto alle forze dell’ordine e ai servizi veterinari competenti nel territorio, al fine di tutelare il benessere dell’animale.`,
+  },
+  {
     title: 'Comportamento',
     body: 'Non si accettano in alcun modo cani che manifestano problemi di aggressività, intolleranza o forte reattività verso altri animali, sia cani che altre specie, e persone.',
   },
@@ -103,21 +107,12 @@ const requirements = [
       }
     </ul>
 
-    <div class="mt-8 grid gap-4 lg:grid-cols-3">
+    <div class="mt-8 grid gap-4 md:grid-cols-2">
       <Callout tone="warning" title="Allontanamento immediato">
         Qualora il cane manifesti comportamenti aggressivi, lesivi o gravemente incontrollabili durante il
         soggiorno, la struttura si riserva il diritto di allontanare immediatamente l’animale. Il proprietario
         o un suo delegato reperibile è tenuto a ritirare il cane entro
         {' '}{policy.forcedRemovalCollectionHours} ore dalla comunicazione.
-      </Callout>
-      <Callout tone="warning" title="Mancato ritiro e abbandono">
-        Il proprietario si impegna a ritirare il cane entro l’orario del giorno stabilito. Si fa presente che ai
-        sensi dell’{policy.abandonmentLaw} l’abbandono di animali domestici costituisce un reato punibile per
-        legge. Qualora il cane non venga ritirato al termine del soggiorno e i proprietari, compresi i contatti
-        di emergenza, risultino irreperibili e non rintracciabili entro un periodo superiore a
-        {' '}{policy.unreachableReportDays} giorni, la struttura sarà obbligata a denunciare l’accaduto alle forze
-        dell’ordine e ai servizi veterinari competenti nel territorio, al fine di tutelare il benessere
-        dell’animale.
       </Callout>
       <Callout tone="warning" title="Penali e costi di emergenza">
         In caso di allontanamento forzato per motivi di sicurezza, la quota dell’intero soggiorno già versata

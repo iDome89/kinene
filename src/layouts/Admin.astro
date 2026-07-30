@@ -71,5 +71,20 @@ const nav = [
     <main class="wrap flex-1 py-10">
       <slot />
     </main>
+
+    <footer class="border-t border-edge bg-surface-raised py-5">
+      <div class="wrap flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
+        <p class="m-0">
+          Scarica una copia di prenotazioni, recensioni e clienti prima di ogni modifica importante.
+        </p>
+        <a
+          href="/admin/backup.json"
+          download
+          class="min-h-11 rounded-full border border-edge-strong px-4 py-2 no-underline transition-colors hover:bg-surface-tint"
+        >
+          Scarica backup
+        </a>
+      </div>
+    </footer>
   </body>
 </html>

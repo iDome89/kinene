@@ -200,3 +200,36 @@ test.describe('admin workflow', () => {
     expect(status).toBe(2);
   });
 });
+
+test.describe('backup', () => {
+  test('refuses to hand the customer database to a stranger', async ({ page }) => {
+    const response = await page.goto('/admin/backup.json');
+    expect(page.url()).toContain('/admin/login');
+    expect(await response!.text()).not.toContain('"owners"');
+  });
+
+  test('exports every table a wiped volume would destroy', async ({ page }) => {
+    const reference = await submitBooking(page, futureDate(26), futureDate(27), '380260002000333');
+    await login(page);
+    const response = await page.request.get('/admin/backup.json');
+    expect(response.status()).toBe(200);
+    expect(response.headers()['content-disposition']).toContain('kinene-backup-');
+
+    const backup = await response.json();
+    for (const table of [
+      'owners',
+      'dogs',
+      'bookings',
+      'emergencyContacts',
+      'reviews',
+      'galleryImages',
+      'blackouts',
+      'capacityOverrides',
+    ]) {
+      expect(Array.isArray(backup[table]), `${table} missing from backup`).toBe(true);
+    }
+    expect(backup.bookings.map((row: { reference: string }) => row.reference)).toContain(reference);
+    expect(backup.owners.length).toBeGreaterThan(0);
+    expect(backup.exportedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+});

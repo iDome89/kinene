@@ -1,6 +1,7 @@
 ---
 import Base from '@/layouts/Base.astro';
 import PageHero from '@/components/PageHero.astro';
+import OtherPets from '@/components/OtherPets.astro';
 import Section from '@/components/Section.astro';
 import SectionHeading from '@/components/SectionHeading.astro';
 import Button from '@/components/Button.astro';
@@ -83,6 +84,10 @@ const latePercent = policy.lateCancellationFeeRatio * 100;
         anticipo e non possono superare le 24 ore dal giorno di ritiro stabilito.
       </Callout>
     </div>
+  </Section>
+
+  <Section labelledby="altri-animali">
+    <OtherPets headingId="altri-animali" />
   </Section>
 
   <Section tone="sunken" labelledby="pagamento">

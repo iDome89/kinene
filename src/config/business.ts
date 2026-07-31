@@ -35,6 +35,28 @@ export const business = {
   },
 } as const;
 
+/*
+  Cani a calendario, tutto il resto a voce: le regole di capienza, il test
+  d'ingresso e il libretto sanitario sono scritti per i cani, e un criceto non
+  entra in nessuna di quelle caselle. Meglio una telefonata che un modulo che
+  mente.
+*/
+export const otherPets = {
+  title: 'Non solo cani',
+  lead: 'Accogliamo anche gli altri animali da compagnia: gatti, conigli, criceti e altri piccoli roditori, pappagalli e uccelli da gabbia, tartarughe, lucertole e altri rettili.',
+  examples: [
+    'Gatti',
+    'Conigli, criceti, cavie',
+    'Pappagalli e uccelli da gabbia',
+    'Tartarughe, lucertole e altri rettili',
+    'Pesci e acquari',
+  ],
+  bookingNote:
+    'Per questi ospiti non usiamo il calendario online: ogni specie ha esigenze diverse di spazio, temperatura e alimentazione, quindi ne parliamo prima al telefono o su WhatsApp e concordiamo insieme soggiorno e tariffa.',
+  whatsappMessage:
+    'Ciao Kinene, avrei bisogno di ospitare un animale che non è un cane. Posso avere informazioni?',
+} as const;
+
 export const openingHours = {
   weekdays: {
     label: 'Lunedì — Venerdì',

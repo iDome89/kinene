@@ -6,9 +6,10 @@ interface Props {
   title?: string;
   icon?: IconName;
   class?: string;
+  'data-testid'?: string;
 }
 
-const { tone = 'info', title, icon, class: className = '' } = Astro.props;
+const { tone = 'info', title, icon, class: className = '', ...rest } = Astro.props;
 
 const tones = {
   info: { wrap: 'border-edge bg-surface-tint', mark: 'text-primary', icon: 'shield' as IconName },
@@ -19,7 +20,7 @@ const tones = {
 const config = tones[tone];
 ---
 
-<div class={`flex gap-4 rounded-[var(--radius-card)] border p-5 ${config.wrap} ${className}`}>
+<div class={`flex gap-4 rounded-[var(--radius-card)] border p-5 ${config.wrap} ${className}`} {...rest}>
   <Icon name={icon ?? config.icon} size={21} class={`mt-0.5 shrink-0 ${config.mark}`} />
   <div class="min-w-0">
     {title && <p class="m-0 font-sans text-sm font-semibold">{title}</p>}

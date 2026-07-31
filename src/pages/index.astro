@@ -2,10 +2,11 @@
 import Base from '@/layouts/Base.astro';
 import Section from '@/components/Section.astro';
 import SectionHeading from '@/components/SectionHeading.astro';
+import OtherPets from '@/components/OtherPets.astro';
 import Button from '@/components/Button.astro';
 import Icon from '@/components/Icon.astro';
 import Figure from '@/components/Figure.astro';
-import { business, policy, serviceList } from '@/config/business';
+import { business, policy, serviceList, otherPets } from '@/config/business';
 import { formatEuro } from '@/lib/pricing';
 import { fullAddress, mapsLink, telLink, whatsappLink } from '@/lib/links';
 
@@ -63,6 +64,10 @@ const steps = [
 ];
 
 const faqs = [
+  {
+    q: 'Tenete solo cani o anche altri animali?',
+    a: `${otherPets.lead} ${otherPets.bookingNote}`,
+  },
   {
     q: 'Devo per forza fare il test d’ingresso?',
     a: 'Sì, ed è gratuito. È un primo incontro conoscitivo che serve a valutare il carattere del cane e la sua compatibilità con il gruppo. Senza questo passaggio non possiamo accettare il soggiorno: è la garanzia di sicurezza per il tuo cane e per tutti gli altri ospiti.',
@@ -256,6 +261,8 @@ const cheapest = serviceList.reduce((min, service) => (service.priceCents < min.
         ))
       }
     </ul>
+
+    <OtherPets class="mt-6" />
   </Section>
 
   <Section tone="plain" labelledby="come-funziona">
@@ -294,7 +301,7 @@ const cheapest = serviceList.reduce((min, service) => (service.priceCents < min.
 
       <div>
         <p class="mb-3 text-xs font-semibold uppercase tracking-[0.22em] opacity-70">Allevamento</p>
-        <h2 class="text-[clamp(1.75rem,1.2rem+2vw,2.6rem)] font-semibold !text-inverse">
+        <h2 id="allevamento" class="text-[clamp(1.75rem,1.2rem+2vw,2.6rem)] font-semibold !text-inverse">
           Cane Corso, selezionato con criterio
         </h2>
         <p class="mt-5 max-w-xl leading-relaxed opacity-85">

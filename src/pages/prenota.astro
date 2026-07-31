@@ -5,8 +5,9 @@ import Section from '@/components/Section.astro';
 import Button from '@/components/Button.astro';
 import Icon from '@/components/Icon.astro';
 import Callout from '@/components/Callout.astro';
+import { telLink, whatsappLink } from '@/lib/links';
 import BookingCalendar from '@/components/BookingCalendar';
-import { business, policy, services, type ServiceId } from '@/config/business';
+import { business, otherPets, policy, services, type ServiceId } from '@/config/business';
 import { formatDayIt, todayInBusinessTimezone } from '@/lib/dates';
 import { formatEuro } from '@/lib/pricing';
 import {
@@ -277,6 +278,16 @@ const hintClass = 'mt-1 block text-xs text-muted';
         />
 
         <Section>
+          <Callout tone="info" icon="paw" title="Hai un animale che non è un cane?" class="mb-10" data-testid="other-pets-notice">
+            <p class="m-0">
+              {otherPets.bookingNote} Chiama il <a href={telLink()}>{business.contact.phoneDisplay}</a>
+              {' oppure '}
+              <a href={whatsappLink(otherPets.whatsappMessage)} target="_blank" rel="noopener noreferrer">
+                scrivici su WhatsApp
+              </a>.
+            </p>
+          </Callout>
+
           <form method="POST" novalidate class="grid gap-12 xl:grid-cols-[1.45fr_0.55fr]">
             <div>
               {fatalError && (

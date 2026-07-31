@@ -1,0 +1,59 @@
+---
+import Button from './Button.astro';
+import Icon from './Icon.astro';
+import { business, otherPets } from '@/config/business';
+import { telLink, whatsappLink } from '@/lib/links';
+
+interface Props {
+  compact?: boolean;
+  headingId?: string;
+  class?: string;
+}
+
+const { compact = false, headingId, class: className = '' } = Astro.props;
+---
+
+<div
+  data-testid="other-pets"
+  class={`rounded-[var(--radius-card)] border border-edge bg-surface-raised p-7 ${className}`}
+>
+  <div class="flex items-start gap-4">
+    <Icon name="paw" size={22} class="mt-1 shrink-0 text-primary" />
+    <div class="min-w-0">
+      <h3 id={headingId} class="m-0 font-display text-xl font-semibold">{otherPets.title}</h3>
+      <p class="mt-3 text-sm leading-relaxed text-muted">{otherPets.lead}</p>
+    </div>
+  </div>
+
+  {
+    !compact && (
+      <ul class="mt-6 flex list-none flex-wrap gap-2 p-0">
+        {otherPets.examples.map((example) => (
+          <li class="rounded-full border border-edge bg-surface-tint px-3.5 py-1.5 text-sm text-muted">
+            {example}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  <p class="mt-6 border-t border-edge pt-5 text-sm leading-relaxed text-muted">
+    {otherPets.bookingNote}
+  </p>
+
+  <div class="mt-6 flex flex-wrap gap-3">
+    <Button href={telLink()} variant="accent">
+      <Icon name="phone" size={17} />
+      {business.contact.phoneDisplay}
+    </Button>
+    <Button
+      href={whatsappLink(otherPets.whatsappMessage)}
+      variant="outline"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <Icon name="whatsapp" size={17} />
+      Scrivici su WhatsApp
+    </Button>
+  </div>
+</div>

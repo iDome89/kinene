@@ -46,7 +46,7 @@ export const otherPets = {
   lead: 'Accogliamo anche gli altri animali da compagnia: gatti, conigli, criceti e altri piccoli roditori, pappagalli e uccelli da gabbia, tartarughe, lucertole e altri rettili.',
   examples: [
     'Gatti',
-    'Conigli, criceti, cavie',
+    'Conigli, criceti e piccoli roditori',
     'Pappagalli e uccelli da gabbia',
     'Tartarughe, lucertole e altri rettili',
     'Pesci e acquari',

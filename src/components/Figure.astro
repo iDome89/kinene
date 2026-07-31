@@ -1,8 +1,12 @@
 ---
+import { Image } from 'astro:assets';
 import Icon, { type IconName } from './Icon.astro';
 
 interface Props {
   caption: string;
+  /* With a src this is a real photo; without one it stays the placeholder. */
+  src?: ImageMetadata;
+  alt?: string;
   ratio?: string;
   icon?: IconName;
   class?: string;
@@ -10,36 +14,66 @@ interface Props {
   priority?: boolean;
 }
 
-const { caption, ratio = '4 / 3', icon = 'paw', class: className = '', rounded = true } = Astro.props;
+const {
+  caption,
+  src,
+  alt,
+  ratio = '4 / 3',
+  icon = 'paw',
+  class: className = '',
+  rounded = true,
+  priority = false,
+} = Astro.props;
 ---
 
-<div
-  class:list={[
-    'relative isolate flex items-center justify-center overflow-hidden bg-surface-tint',
-    rounded && 'rounded-[var(--radius-card)]',
-    className,
-  ]}
-  style={`aspect-ratio: ${ratio}`}
-  role="img"
-  aria-label={caption}
-  data-placeholder="photo"
->
-  <div
-    class="absolute inset-0 opacity-[0.55]"
-    style="background-image: radial-gradient(circle at 22% 18%, color-mix(in oklab, var(--t-primary) 26%, transparent), transparent 58%), radial-gradient(circle at 82% 84%, color-mix(in oklab, var(--t-accent) 20%, transparent), transparent 55%);"
-    aria-hidden="true"
-  >
-  </div>
+{
+  src ? (
+    <figure
+      class:list={[
+        'relative m-0 overflow-hidden bg-surface-tint',
+        rounded && 'rounded-[var(--radius-card)]',
+        className,
+      ]}
+      style={`aspect-ratio: ${ratio}`}
+    >
+      <Image
+        src={src}
+        alt={alt ?? caption}
+        widths={[480, 768, 1024, 1440]}
+        sizes="(min-width: 1024px) 46vw, 92vw"
+        loading={priority ? 'eager' : 'lazy'}
+        decoding={priority ? 'sync' : 'async'}
+        class="h-full w-full object-cover"
+      />
+    </figure>
+  ) : (
+    <div
+      class:list={[
+        'relative isolate flex items-center justify-center overflow-hidden bg-surface-tint',
+        rounded && 'rounded-[var(--radius-card)]',
+        className,
+      ]}
+      style={`aspect-ratio: ${ratio}`}
+      role="img"
+      aria-label={caption}
+      data-placeholder="photo"
+    >
+      <div
+        class="absolute inset-0 opacity-[0.55]"
+        style="background-image: radial-gradient(circle at 22% 18%, color-mix(in oklab, var(--t-primary) 26%, transparent), transparent 58%), radial-gradient(circle at 82% 84%, color-mix(in oklab, var(--t-accent) 20%, transparent), transparent 55%);"
+        aria-hidden="true"
+      />
 
-  <div
-    class="absolute inset-0 opacity-[0.14]"
-    style="background-image: repeating-linear-gradient(135deg, var(--t-text) 0 1px, transparent 1px 11px);"
-    aria-hidden="true"
-  >
-  </div>
+      <div
+        class="absolute inset-0 opacity-[0.14]"
+        style="background-image: repeating-linear-gradient(135deg, var(--t-text) 0 1px, transparent 1px 11px);"
+        aria-hidden="true"
+      />
 
-  <div class="relative flex flex-col items-center gap-3 px-6 text-center">
-    <Icon name={icon} size={30} class="text-primary opacity-70" />
-    <p class="m-0 max-w-[22ch] text-xs font-medium uppercase tracking-[0.18em] text-muted">{caption}</p>
-  </div>
-</div>
+      <div class="relative flex flex-col items-center gap-3 px-6 text-center">
+        <Icon name={icon} size={30} class="text-primary opacity-70" />
+        <p class="m-0 max-w-[22ch] text-xs font-medium uppercase tracking-[0.18em] text-muted">{caption}</p>
+      </div>
+    </div>
+  )
+}

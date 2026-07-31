@@ -6,6 +6,7 @@ import OtherPets from '@/components/OtherPets.astro';
 import Button from '@/components/Button.astro';
 import Icon from '@/components/Icon.astro';
 import Figure from '@/components/Figure.astro';
+import allevamentoPhoto from '@/assets/allevamento-cane-corso.jpg';
 import { business, policy, serviceList, otherPets } from '@/config/business';
 import { formatEuro } from '@/lib/pricing';
 import { fullAddress, mapsLink, telLink, whatsappLink } from '@/lib/links';
@@ -297,7 +298,13 @@ const cheapest = serviceList.reduce((min, service) => (service.priceCents < min.
 
   <Section tone="inverse" labelledby="allevamento">
     <div class="grid items-center gap-12 lg:grid-cols-[0.95fr_1.05fr]">
-      <Figure caption="Riproduttori e cucciolate" icon="paw" ratio="5 / 4" class="border border-white/10" />
+      <Figure
+        src={allevamentoPhoto}
+        alt="Cane Corso grigio seduto che guarda verso l’alto, con collare a borchie"
+        caption="Riproduttori e cucciolate"
+        ratio="4 / 5"
+        class="border border-white/10"
+      />
 
       <div>
         <p class="mb-3 text-xs font-semibold uppercase tracking-[0.22em] opacity-70">Allevamento</p>

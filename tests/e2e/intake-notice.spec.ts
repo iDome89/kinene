@@ -7,7 +7,8 @@ test.describe('preavviso test d’ingresso', () => {
   for (const path of PAGES) {
     test(`${path} states the seven-day notice`, async ({ page }) => {
       await page.goto(path);
-      await expect(page.locator('body')).toContainText(/7 giorni prima/);
+      /* Anchored on 'almeno': plain '7 giorni prima' also matches the cancellation policy. */
+      await expect(page.locator('body')).toContainText(/almeno 7 giorni prima/);
     });
   }
 
@@ -28,6 +29,6 @@ test.describe('preavviso test d’ingresso', () => {
 
   test('the booking page says it before the form, not after', async ({ page }) => {
     await page.goto('/prenota');
-    await expect(page.getByText(/7 giorni prima/).first()).toBeVisible();
+    await expect(page.getByText(/almeno 7 giorni prima/).first()).toBeVisible();
   });
 });

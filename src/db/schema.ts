@@ -117,7 +117,7 @@ export const galleryImages = sqliteTable(
     slug: text('slug').notNull(),
     alt: text('alt').notNull(),
     caption: text('caption'),
-    category: text('category', { enum: ['struttura', 'cani', 'allevamento'] })
+    category: text('category', { enum: ['struttura', 'cani', 'nostri-animali', 'allevamento'] })
       .notNull()
       .default('struttura'),
     width: integer('width').notNull(),

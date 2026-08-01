@@ -179,6 +179,7 @@ export const policy = {
 export const galleryCategories = [
   { id: 'struttura', label: 'La struttura' },
   { id: 'cani', label: 'I nostri ospiti' },
+  { id: 'nostri-animali', label: 'I nostri animali' },
   { id: 'allevamento', label: 'Allevamento' },
 ] as const;
 

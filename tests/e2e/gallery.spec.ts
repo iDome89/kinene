@@ -89,6 +89,32 @@ test.describe('gallery — admin', () => {
     await expect(page.getByRole('status')).toContainText('Formato non supportato');
   });
 
+  test('offers "I nostri animali" as its own section, separate from the guests', async ({ page }) => {
+    await login(page);
+    await page.goto('/admin/galleria');
+
+    const categories = await page.locator('#category option').evaluateAll((nodes) =>
+      nodes.map((node) => [(node as HTMLOptionElement).value, node.textContent?.trim()]),
+    );
+    expect(categories).toContainEqual(['nostri-animali', 'I nostri animali']);
+    expect(categories).toContainEqual(['cani', 'I nostri ospiti']);
+
+    await page.locator('#photos').setInputFiles({
+      name: 'nostri.png',
+      mimeType: 'image/png',
+      buffer: PNG_1PX,
+    });
+    await page.locator('#alt').fill('Uno dei nostri animali nel prato');
+    await page.locator('#category').selectOption('nostri-animali');
+    await page.getByRole('button', { name: 'Carica' }).click();
+    await expect(page.getByRole('status')).toContainText('1 foto caricata');
+
+    await page.goto('/galleria');
+    const section = page.locator('#gallery-nostri-animali').locator('xpath=ancestor::section[1]');
+    await expect(page.locator('#gallery-nostri-animali')).toHaveText('I nostri animali');
+    await expect(section.locator('img[alt="Uno dei nostri animali nel prato"]')).toBeVisible();
+  });
+
   test('refuses an upload without alt text', async ({ page }) => {
     await login(page);
     await page.goto('/admin/galleria');

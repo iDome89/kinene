@@ -4,6 +4,11 @@ import PageHero from '@/components/PageHero.astro';
 import Section from '@/components/Section.astro';
 import SectionHeading from '@/components/SectionHeading.astro';
 import Figure from '@/components/Figure.astro';
+import valeriaPhoto from '@/assets/valeria-borda.jpg';
+import zonaRiposo from '@/assets/zona-riposo.jpg';
+import zonaVerde from '@/assets/zona-verde.jpg';
+import zonaGioco from '@/assets/zona-gioco.jpg';
+import zonaPasseggiate from '@/assets/zona-passeggiate.jpg';
 import Button from '@/components/Button.astro';
 import Icon from '@/components/Icon.astro';
 import { business } from '@/config/business';
@@ -51,7 +56,12 @@ const principles = [
 
   <Section labelledby="valeria">
     <div class="grid items-start gap-12 lg:grid-cols-[0.9fr_1.1fr]">
-      <Figure caption={`Foto di ${business.contact.personName}`} icon="users" ratio="4 / 5" />
+      <Figure
+        src={valeriaPhoto}
+        alt={`${business.contact.personName}, addestratrice cinofila, con uno dei cani della struttura`}
+        caption={`Foto di ${business.contact.personName}`}
+        ratio="4 / 5"
+      />
 
       <div>
         <SectionHeading
@@ -117,10 +127,31 @@ const principles = [
       lead="Vieni a vederli di persona: il test d’ingresso serve anche a questo."
     />
 
-    <div class="mt-12 grid gap-6 md:grid-cols-3">
-      <Figure caption="Area gioco e socializzazione" icon="paw" ratio="3 / 4" />
-      <Figure caption="Zona riposo al coperto" icon="heart" ratio="3 / 4" />
-      <Figure caption="Passeggiate nei sentieri intorno" icon="leaf" ratio="3 / 4" />
+    <div class="mt-12 grid gap-6 md:grid-cols-2">
+      <Figure
+        src={zonaRiposo}
+        alt="La zona riposo al coperto: cuccia morbida, giochi e le ciotole dell’acqua e della pappa"
+        caption="Zona riposo al coperto"
+        ratio="4 / 3"
+      />
+      <Figure
+        src={zonaVerde}
+        alt="L’area verde della struttura, con i cedri secolari e il prato che scende verso la recinzione"
+        caption="Area verde recintata"
+        ratio="4 / 3"
+      />
+      <Figure
+        src={zonaGioco}
+        alt="Un cane corre con la pallina nell’area gioco, con le colline modenesi sullo sfondo"
+        caption="Area gioco e socializzazione"
+        ratio="4 / 3"
+      />
+      <Figure
+        src={zonaPasseggiate}
+        alt="I sentieri e i prati intorno alla struttura, con il borgo di Guiglia sulla collina di fronte"
+        caption="Passeggiate nei dintorni"
+        ratio="4 / 3"
+      />
     </div>
   </Section>
 </Base>

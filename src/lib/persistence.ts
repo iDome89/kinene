@@ -31,7 +31,7 @@ export function storageVerdict(probe: StorageProbe, rows: Readonly<Record<string
     return (
       `[storage] ATTENZIONE: ${probe.path} non esisteva all'avvio, database creato ora (${inventory}). ` +
       'Se questo messaggio compare a ogni deploy, il disco non e persistente: ' +
-      'collega un disco a /data dal pannello Render.'
+      `collega un disco montato su ${probe.path.replace(/\/[^/]+$/, '')} dal pannello Render.`
     );
   }
 

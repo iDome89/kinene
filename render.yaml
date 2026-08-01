@@ -9,12 +9,12 @@ services:
     autoDeploy: true
 
     # Free-tier preview: set `plan: free` and delete the `disk:` block below.
-    # The app still runs, but /data is ephemeral — bookings AND uploaded photos
+    # The app still runs, but /var/data is ephemeral — bookings AND uploaded photos
     # are lost on every redeploy and whenever the free instance sleeps. Fine to
     # show the site, not fine for real customers.
     disk:
       name: kinene-data
-      mountPath: /data
+      mountPath: /var/data
       sizeGB: 2
 
     envVars:
@@ -23,9 +23,9 @@ services:
       - key: HOST
         value: 0.0.0.0
       - key: DATABASE_URL
-        value: file:/data/kinene.db
+        value: file:/var/data/kinene.db
       - key: UPLOAD_DIR
-        value: /data/uploads
+        value: /var/data/uploads
       - key: SESSION_SECRET
         generateValue: true
       - key: ADMIN_PASSWORD_HASH

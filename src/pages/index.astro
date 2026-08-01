@@ -41,7 +41,7 @@ const strengths = [
 const steps = [
   {
     title: 'Test d’ingresso gratuito',
-    body: 'Un primo incontro conoscitivo, senza impegno e senza costi. Valutiamo il carattere del cane e ci conosciamo.',
+    body: `Un primo incontro conoscitivo, senza impegno e senza costi, da fissare almeno ${policy.intakeTestNoticeDays} giorni prima del soggiorno. Valutiamo il carattere del cane e ci conosciamo.`,
     href: '/test-di-ingresso',
     linkLabel: 'Come funziona',
   },
@@ -72,7 +72,7 @@ const faqs = [
   },
   {
     q: 'Devo per forza fare il test d’ingresso?',
-    a: 'Sì, ed è gratuito. È un primo incontro conoscitivo che serve a valutare il carattere del cane e la sua compatibilità con il gruppo. Senza questo passaggio non possiamo accettare il soggiorno: è la garanzia di sicurezza per il tuo cane e per tutti gli altri ospiti.',
+    a: `Sì, ed è gratuito. Va fatto almeno ${policy.intakeTestNoticeDays} giorni prima del soggiorno: è un primo incontro conoscitivo che serve a valutare il carattere del cane e la sua compatibilità con il gruppo. Senza questo passaggio non possiamo accettare il soggiorno, quindi fissalo appena scegli le date: è la garanzia di sicurezza per il tuo cane e per tutti gli altri ospiti.`,
   },
   {
     q: 'Quali documenti servono?',

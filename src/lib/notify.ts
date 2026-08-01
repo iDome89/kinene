@@ -1,4 +1,4 @@
-import { business, services, type ServiceId } from '@/config/business';
+import { business, policy, services, type ServiceId } from '@/config/business';
 import { formatDayIt } from './dates';
 import { formatEuro } from './pricing';
 import type { EmergencyContact } from './rules';
@@ -102,7 +102,7 @@ export function ownerMessage(booking: BookingNotification): Message {
       `Ritiro:         ${formatDayIt(booking.endDay)} (${definition.checkOutFrom}—${definition.checkOutTo})`,
       `Totale stimato: ${formatEuro(booking.priceCents)}, da saldare il giorno del check-in.`,
       '',
-      'Ricorda che prima del primo soggiorno è obbligatorio il test d’ingresso, che è gratuito.',
+      `Ricorda che il test d’ingresso è obbligatorio e gratuito, e va fatto almeno ${policy.intakeTestNoticeDays} giorni prima del soggiorno.`,
       '',
       `${business.tradeName} — ${business.contact.personName}`,
       business.contact.phoneDisplay,
@@ -155,7 +155,7 @@ export function decisionMessage(booking: DecisionNotification, decision: Decisio
           ? []
           : [
               '',
-              'Ricorda che il test d’ingresso è obbligatorio prima del primo soggiorno ed è gratuito:',
+              `Ricorda che il test d’ingresso è obbligatorio, gratuito e va fatto almeno ${policy.intakeTestNoticeDays} giorni prima del soggiorno:`,
               'contattaci per fissarlo se non l’hai ancora fatto.',
             ]),
         ...note,

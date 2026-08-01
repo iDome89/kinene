@@ -162,6 +162,8 @@ export const serviceList: readonly ServiceDefinition[] = [
 export const policy = {
   minAgeMonths: 12,
   minEmergencyContacts: 2,
+  /* Serve tempo per valutare il cane e, se necessario, rifiutare senza lasciare scoperto il proprietario. */
+  intakeTestNoticeDays: 7,
   standardCancellationDays: 7,
   highSeasonCancellationDays: 14,
   lateCancellationFeeRatio: 0.5,

@@ -1,6 +1,7 @@
 ---
 import '@/styles/global.css';
 import Logo from '@/components/Logo.astro';
+import { storageHealth } from '@/lib/storage-health';
 
 interface Props {
   title: string;
@@ -16,6 +17,11 @@ const nav = [
   { key: 'galleria', href: '/admin/galleria', label: 'Galleria' },
   { key: 'recensioni', href: '/admin/recensioni', label: 'Recensioni' },
 ] as const;
+
+const storage = storageHealth(
+  process.env.DATABASE_URL ?? 'file:./data/kinene.db',
+  process.env.UPLOAD_DIR ?? './data/uploads',
+);
 ---
 
 <!doctype html>
@@ -68,6 +74,33 @@ const nav = [
       </div>
     </header>
 
+    {
+      !storage.durable && (
+        <div class="border-b border-danger/35 bg-danger-surface">
+          <div class="wrap flex gap-4 py-4" role="alert">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="mt-0.5 shrink-0 text-danger"
+              aria-hidden="true"
+            >
+              <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+            </svg>
+            <div class="min-w-0">
+              <p class="m-0 font-semibold text-danger">{storage.headline}</p>
+              <p class="m-0 mt-1 text-sm leading-relaxed">{storage.detail}</p>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     <main class="wrap flex-1 py-10">
       <slot />
     </main>
@@ -75,7 +108,7 @@ const nav = [
     <footer class="border-t border-edge bg-surface-raised py-5">
       <div class="wrap flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
         <p class="m-0">
-          Scarica una copia di prenotazioni, recensioni e clienti prima di ogni modifica importante.
+          {storage.durable ? storage.detail : 'Scarica subito una copia: sul server non è al sicuro.'}
         </p>
         <a
           href="/admin/backup.json"

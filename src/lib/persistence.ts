@@ -38,6 +38,33 @@ export function storageVerdict(probe: StorageProbe, rows: Readonly<Record<string
   return `[storage] ${probe.path} ritrovato (${formatBytes(probe.bytesAtBoot)}): ${inventory}`;
 }
 
+/*
+  A Render disk appears in /proc/self/mountinfo as its own mount. Nothing else
+  distinguishes it from a plain directory inside the image, and a plain
+  directory is thrown away with the container on every deploy — so this is the
+  question, and it can be answered now rather than by waiting for data to
+  vanish. Field 5 of each line is the mount point.
+*/
+export function dataDirIsMounted(mountinfo: string, dir: string): boolean {
+  const wanted = normaliseDir(dir);
+  let deepest = '/';
+
+  for (const line of mountinfo.split('\n')) {
+    const point = line.split(' ')[4];
+    if (point === undefined) continue;
+    const candidate = normaliseDir(point);
+    const covers = candidate === wanted || wanted.startsWith(`${candidate === '/' ? '' : candidate}/`);
+    if (covers && candidate.length > deepest.length) deepest = candidate;
+  }
+
+  return deepest !== '/';
+}
+
+function normaliseDir(dir: string): string {
+  const trimmed = dir.replace(/\/+$/, '');
+  return trimmed.length === 0 ? '/' : trimmed;
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;

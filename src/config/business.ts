@@ -49,7 +49,6 @@ export const otherPets = {
     'Conigli, criceti e piccoli roditori',
     'Pappagalli e uccelli da gabbia',
     'Tartarughe, lucertole e altri rettili',
-    'Pesci e acquari',
   ],
   bookingNote:
     'Per questi ospiti non usiamo il calendario online: ogni specie ha esigenze diverse di spazio, temperatura e alimentazione, quindi ne parliamo prima al telefono o su WhatsApp e concordiamo insieme soggiorno e tariffa.',

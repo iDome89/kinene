@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { databasePath, formatBytes, storageVerdict } from '@/lib/persistence';
+import { databasePath, dataDirIsMounted, formatBytes, storageVerdict } from '@/lib/persistence';
 
 describe('databasePath', () => {
   it('reads the path Render actually mounts', () => {
@@ -81,5 +81,46 @@ describe('an empty file is not a survivor', () => {
       { prenotazioni: 0, recensioni: 0, foto: 0 },
     );
     expect(line).toContain('ATTENZIONE');
+  });
+});
+
+describe('dataDirIsMounted', () => {
+  /* Trimmed but structurally real: field 5 is the mount point. */
+  const containerOnly = [
+    '1234 1233 0:59 / / rw,relatime - overlay overlay rw,lowerdir=/x',
+    '1235 1234 0:62 / /proc rw,nosuid - proc proc rw',
+    '1236 1234 0:63 / /sys ro,nosuid - sysfs sysfs ro',
+    '1240 1234 8:1 /etc/hosts /etc/hosts rw,relatime - ext4 /dev/sda1 rw',
+  ].join('\n');
+
+  const withDisk = `${containerOnly}\n1250 1234 8:16 / /data rw,relatime - ext4 /dev/sdb rw`;
+
+  it('sees no disk when the directory only exists inside the image', () => {
+    expect(dataDirIsMounted(containerOnly, '/data')).toBe(false);
+  });
+
+  it('sees the disk once one is attached', () => {
+    expect(dataDirIsMounted(withDisk, '/data')).toBe(true);
+  });
+
+  it('counts a subdirectory of the mounted disk as persistent', () => {
+    expect(dataDirIsMounted(withDisk, '/data/uploads')).toBe(true);
+  });
+
+  it('is not fooled by a mount whose path merely starts with the same letters', () => {
+    const decoy = `${containerOnly}\n1250 1234 8:16 / /database rw,relatime - ext4 /dev/sdb rw`;
+    expect(dataDirIsMounted(decoy, '/data')).toBe(false);
+  });
+
+  it('does not count the container root as a disk', () => {
+    expect(dataDirIsMounted(containerOnly, '/')).toBe(false);
+  });
+
+  it('ignores a trailing slash', () => {
+    expect(dataDirIsMounted(withDisk, '/data/')).toBe(true);
+  });
+
+  it('treats unreadable mountinfo as no disk rather than guessing yes', () => {
+    expect(dataDirIsMounted('', '/data')).toBe(false);
   });
 });

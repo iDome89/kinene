@@ -7,6 +7,7 @@ import Button from '@/components/Button.astro';
 import Icon from '@/components/Icon.astro';
 import Figure from '@/components/Figure.astro';
 import allevamentoPhoto from '@/assets/allevamento-cane-corso.jpg';
+import strutturaPhoto from '@/assets/struttura-ingresso.jpg';
 import { business, policy, serviceList, otherPets } from '@/config/business';
 import { formatEuro } from '@/lib/pricing';
 import { fullAddress, mapsLink, telLink, whatsappLink } from '@/lib/links';
@@ -184,9 +185,11 @@ const cheapest = serviceList.reduce((min, service) => (service.priceCents < min.
       </div>
 
       <Figure
+        src={strutturaPhoto}
+        alt="L’ingresso di Kinene a Guiglia: il cancello carraio e la casa con il tetto rosso, circondata dal verde dell’Appennino modenese"
         caption="Foto della struttura e degli spazi verdi"
-        icon="leaf"
         ratio="4 / 3"
+        priority
         class="shadow-xl shadow-black/5"
       />
     </div>

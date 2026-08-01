@@ -7,7 +7,6 @@ import SectionHeading from '@/components/SectionHeading.astro';
 import Button from '@/components/Button.astro';
 import Icon from '@/components/Icon.astro';
 import Callout from '@/components/Callout.astro';
-import Figure from '@/components/Figure.astro';
 import { maxDurationLabel, policy, serviceList, services, type ServiceId } from '@/config/business';
 import { serviceCopy } from '@/content/services';
 import { formatEuro } from '@/lib/pricing';
@@ -195,7 +194,6 @@ const breadcrumb = [
       </div>
 
       <div class="flex flex-col gap-5">
-        <Figure caption={`Foto: ${service.name.toLowerCase()}`} ratio="4 / 3" />
         <Callout tone="warning" title="Prima del soggiorno serve il test d’ingresso">
           È un primo incontro conoscitivo, gratuito e obbligatorio. Senza questo passaggio non possiamo
           accettare la prenotazione. <a href="/test-di-ingresso">Come funziona</a>.

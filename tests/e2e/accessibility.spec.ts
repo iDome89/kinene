@@ -63,9 +63,31 @@ test('the booking calendar is operable with the keyboard alone', async ({ page }
   await expect(page.locator('[aria-live="polite"]')).toContainText('Selezionato');
 });
 
+/*
+  Seeded rather than assumed: on the first of the month the calendar opens with
+  no past days, and a test that waits for one to exist just fails at midnight.
+*/
 test('disabled calendar days announce why they cannot be chosen', async ({ page }) => {
+  const closed = new Date();
+  closed.setDate(closed.getDate() + 20);
+  const closedDay = closed.toISOString().slice(0, 10);
+
+  await page.goto('/admin/login');
+  await page.locator('#password').fill('e2e-password');
+  await page.getByRole('button', { name: 'Entra' }).click();
+  await page.goto('/admin/chiusure');
+  await page.locator('#fromDay').fill(closedDay);
+  await page.locator('#toDay').fill(closedDay);
+  await page.locator('#reason').fill('Chiusura per test a11y');
+  await page.getByRole('button', { name: 'Aggiungi chiusura' }).click();
+  await expect(page.getByRole('status')).toContainText('registrata');
+
   await page.goto('/prenota');
   await page.waitForFunction(() => document.querySelectorAll('button[data-day]').length > 20);
+
+  const seeded = page.locator(`button[data-day="${closedDay}"]`);
+  await expect(seeded).toBeDisabled();
+  await expect(seeded).toHaveAttribute('aria-label', /chiuso/);
 
   const labels = await page.locator('button[data-day][disabled]').evaluateAll((nodes) =>
     nodes.map((n) => n.getAttribute('aria-label') ?? ''),
@@ -75,6 +97,15 @@ test('disabled calendar days announce why they cannot be chosen', async ({ page 
   for (const label of labels) {
     expect(label).toMatch(/data passata|al completo|chiuso/);
   }
+
+  /* Hand the date back: a closure left behind would block every other booking test. */
+  await page.goto('/admin/chiusure');
+  const row = page.locator('li, tr').filter({ hasText: 'Chiusura per test a11y' }).last();
+  await row.getByRole('button', { name: 'Rimuovi' }).click();
+  await expect(page.getByRole('status')).toBeVisible();
+  await page.goto('/prenota');
+  await page.waitForFunction(() => document.querySelectorAll('button[data-day]').length > 20);
+  await expect(page.locator(`button[data-day="${closedDay}"]`)).toBeEnabled();
 });
 
 test('the admin login page is accessible', async ({ page }) => {

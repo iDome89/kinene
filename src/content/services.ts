@@ -78,7 +78,7 @@ export const serviceCopy: Readonly<Record<ServiceId, ServiceCopy>> = {
   pensione: {
     metaTitle: 'Pensione per cani',
     metaDescription:
-      'Pensione per cani a Guiglia (MO), fino a 14 notti. Ampi spazi verdi, routine personalizzate, gestione di un’addestratrice cinofila. Niente box.',
+      'Pensione per cani a Guiglia (MO), fino a 14 notti. Ampi spazi verdi, routine personalizzate e la gestione quotidiana di un’addestratrice cinofila.',
     lead:
       'Soggiorni fino a due settimane. Non andiamo oltre di proposito: oltre quel limite un cane ha bisogno della sua famiglia, non di una struttura, per quanto buona sia.',
     forWho: [

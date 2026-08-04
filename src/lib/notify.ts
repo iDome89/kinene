@@ -1,5 +1,6 @@
 import { business, policy, services, type ServiceId } from '@/config/business';
 import { formatDayIt } from './dates';
+import { plural } from './plural';
 import { formatEuro } from './pricing';
 import type { EmergencyContact } from './rules';
 
@@ -9,7 +10,8 @@ export interface BookingNotification {
   readonly startDay: number;
   readonly endDay: number;
   readonly priceCents: number;
-  readonly dogName: string;
+  readonly dogNames: readonly string[];
+  readonly sharedSpace: boolean;
   readonly ownerName: string;
   readonly ownerEmail: string;
   readonly ownerPhone: string;
@@ -22,6 +24,21 @@ export interface Message {
   readonly subject: string;
   readonly text: string;
   readonly replyTo?: string;
+}
+
+/* "Ares" per un cane, "Ares e Nala" per due: la stessa frase deve reggere entrambi. */
+function dogList(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? 'il cane';
+  return `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`;
+}
+
+function spaceNote(names: readonly string[], sharedSpace: boolean): string[] {
+  if (names.length < 2) return [];
+  return [
+    `Cani:        ${plural(names.length, 'cane', 'cani')}, ${
+      sharedSpace ? 'nello stesso spazio' : 'in spazi separati'
+    }`,
+  ];
 }
 
 const ENDPOINT = 'https://api.resend.com/emails';
@@ -61,7 +78,7 @@ export function staffMessage(booking: BookingNotification): Message {
   return {
     to: '',
     replyTo: booking.ownerEmail,
-    subject: `Nuova richiesta ${booking.reference} — ${booking.dogName}`,
+    subject: `Nuova richiesta ${booking.reference} — ${dogList(booking.dogNames)}`,
     text: [
       `Nuova richiesta di prenotazione: ${booking.reference}`,
       '',
@@ -70,7 +87,8 @@ export function staffMessage(booking: BookingNotification): Message {
       `Ritiro:    ${formatDayIt(booking.endDay)} (${definition.checkOutFrom}—${definition.checkOutTo})`,
       `Totale:    ${formatEuro(booking.priceCents)}`,
       '',
-      `Cane:         ${booking.dogName}`,
+      `Cane:         ${dogList(booking.dogNames)}`,
+      ...spaceNote(booking.dogNames, booking.sharedSpace),
       `Proprietario: ${booking.ownerName}`,
       `Telefono:     ${booking.ownerPhone}`,
       `Email:        ${booking.ownerEmail}`,
@@ -93,7 +111,7 @@ export function ownerMessage(booking: BookingNotification): Message {
     text: [
       `Ciao ${booking.ownerName},`,
       '',
-      `abbiamo ricevuto la tua richiesta per ${booking.dogName}. Non è ancora una conferma:`,
+      `abbiamo ricevuto la tua richiesta per ${dogList(booking.dogNames)}. Non è ancora una conferma:`,
       'verifichiamo la disponibilità e ti rispondiamo, di norma entro 24 ore.',
       '',
       `Riferimento:    ${booking.reference}`,
@@ -118,7 +136,8 @@ export interface DecisionNotification {
   readonly startDay: number;
   readonly endDay: number;
   readonly priceCents: number;
-  readonly dogName: string;
+  readonly dogNames: readonly string[];
+  readonly sharedSpace: boolean;
   readonly ownerName: string;
   readonly ownerEmail: string;
   readonly intakeTestPassed: boolean;
@@ -130,6 +149,7 @@ export function decisionMessage(booking: DecisionNotification, decision: Decisio
   const when = [
     `Riferimento: ${booking.reference}`,
     `Servizio:    ${definition.name}`,
+    ...spaceNote(booking.dogNames, booking.sharedSpace),
     `Consegna:    ${formatDayIt(booking.startDay)} (${definition.checkInFrom}—${definition.checkInTo})`,
     `Ritiro:      ${formatDayIt(booking.endDay)} (${definition.checkOutFrom}—${definition.checkOutTo})`,
   ];
@@ -144,7 +164,7 @@ export function decisionMessage(booking: DecisionNotification, decision: Decisio
       text: [
         `Ciao ${booking.ownerName},`,
         '',
-        `la prenotazione per ${booking.dogName} è confermata.`,
+        `la prenotazione per ${dogList(booking.dogNames)} è confermata.`,
         '',
         ...when,
         `Totale:      ${formatEuro(booking.priceCents)}, da saldare il giorno del check-in.`,
@@ -171,7 +191,7 @@ export function decisionMessage(booking: DecisionNotification, decision: Decisio
       text: [
         `Ciao ${booking.ownerName},`,
         '',
-        `purtroppo non possiamo accettare la richiesta per ${booking.dogName} nelle date indicate.`,
+        `purtroppo non possiamo accettare la richiesta per ${dogList(booking.dogNames)} nelle date indicate.`,
         '',
         ...when,
         ...note,
@@ -188,7 +208,7 @@ export function decisionMessage(booking: DecisionNotification, decision: Decisio
     text: [
       `Ciao ${booking.ownerName},`,
       '',
-      `la prenotazione per ${booking.dogName} è stata annullata.`,
+      `la prenotazione per ${dogList(booking.dogNames)} è stata annullata.`,
       '',
       ...when,
       ...note,

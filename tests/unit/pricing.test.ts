@@ -61,3 +61,50 @@ describe('formatEuro', () => {
     expect(formatEuro(0).replace(/ /g, ' ')).toBe('0,00 €');
   });
 });
+
+describe('più di un cane', () => {
+  const from = day('2026-09-10');
+  const to = day('2026-09-13');
+  const one = quote('pensione', from, to).totalCents;
+
+  it('leaves the single-dog price exactly where it was', () => {
+    expect(quote('pensione', from, to, 1, false).totalCents).toBe(one);
+    expect(quote('pensione', from, to, 1, true).totalCents).toBe(one);
+  });
+
+  it('halves the second dog when the two share a space', () => {
+    expect(quote('pensione', from, to, 2, true).totalCents).toBe(one * 1.5);
+  });
+
+  it('charges the second dog in full when they are kept apart', () => {
+    expect(quote('pensione', from, to, 2, false).totalCents).toBe(one * 2);
+  });
+
+  it('itemises the second dog so the customer sees where the money goes', () => {
+    const shared = quote('pensione', from, to, 2, true);
+    expect(shared.lines).toHaveLength(2);
+    expect(shared.lines[1]!.label).toContain('stesso spazio');
+    expect(shared.lines[1]!.totalCents).toBe(one / 2);
+
+    const apart = quote('pensione', from, to, 2, false);
+    expect(apart.lines[1]!.label).toContain('spazio separato');
+    expect(apart.lines[1]!.totalCents).toBe(one);
+  });
+
+  it('reports sharing only when there is a second dog to share with', () => {
+    expect(quote('pensione', from, to, 1, true).sharedSpace).toBe(false);
+    expect(quote('pensione', from, to, 2, true).sharedSpace).toBe(true);
+  });
+
+  it('never invents a fractional cent', () => {
+    for (const service of ['asilo-diurno', 'asilo-notturno', 'pensione'] as const) {
+      const total = quote(service, from, to, 2, true).totalCents;
+      expect(Number.isInteger(total)).toBe(true);
+    }
+  });
+
+  it('treats a nonsense dog count as one dog rather than pricing zero', () => {
+    expect(quote('pensione', from, to, 0, false).totalCents).toBe(one);
+    expect(quote('pensione', from, to, -3, false).totalCents).toBe(one);
+  });
+});

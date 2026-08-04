@@ -44,7 +44,7 @@ function request(overrides: Partial<BookingRequest> = {}, dog: Partial<DogDeclar
     service: 'pensione',
     startDay: day('2026-10-01'),
     endDay: day('2026-10-05'),
-    dog: { ...compliantDog, ...dog },
+    dogs: [{ ...compliantDog, ...dog }],
     emergencyContacts: twoContacts,
     acceptedRules: true,
     acceptedPrivacy: true,
@@ -326,5 +326,52 @@ describe('isBlockingHighSeasonNotice', () => {
 
   it('does not flag a low season stay booked tomorrow', () => {
     expect(isBlockingHighSeasonNotice(day('2026-09-10'), day('2026-09-14'), day('2026-09-09'))).toBe(false);
+  });
+});
+
+describe('due cani, due giudizi', () => {
+  const twoDogs = (second: Partial<DogDeclaration>): BookingRequest => ({
+    service: 'pensione',
+    startDay: day('2026-10-01'),
+    endDay: day('2026-10-05'),
+    dogs: [{ ...compliantDog }, { ...compliantDog, ...second }],
+    emergencyContacts: twoContacts,
+    acceptedRules: true,
+    acceptedPrivacy: true,
+  });
+
+  it('accepts two dogs when both are in order', () => {
+    expect(validateBooking(twoDogs({}), TODAY)).toEqual([]);
+  });
+
+  it('blames the second dog, not the first', () => {
+    const found = validateBooking(twoDogs({ hasVaccinations: false }), TODAY);
+    expect(found).toHaveLength(1);
+    expect(found[0]!.code).toBe('missing-vaccinations');
+    expect(found[0]!.dogIndex).toBe(1);
+  });
+
+  it('reports each dog separately when both fail', () => {
+    const request = twoDogs({ knowsBaseCommands: false });
+    const broken: BookingRequest = {
+      ...request,
+      dogs: [{ ...compliantDog, isHealthy: false }, request.dogs[1]!],
+    };
+    const found = validateBooking(broken, TODAY);
+    expect(found.map((violation) => [violation.code, violation.dogIndex])).toEqual([
+      ['contagious-or-injured', 0],
+      ['missing-base-commands', 1],
+    ]);
+  });
+
+  it('keeps booking-level violations free of a dog index', () => {
+    const found = validateBooking({ ...twoDogs({}), acceptedRules: false }, TODAY);
+    expect(found).toHaveLength(1);
+    expect(found[0]!.dogIndex).toBeUndefined();
+  });
+
+  it('rejects a puppy in the second slot exactly as in the first', () => {
+    const puppy = { birthDay: day('2026-06-01') };
+    expect(validateBooking(twoDogs(puppy), TODAY).map((v) => v.code)).toEqual(['dog-too-young']);
   });
 });

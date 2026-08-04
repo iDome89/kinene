@@ -52,9 +52,6 @@ export const bookings = sqliteTable(
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
     reference: text('reference').notNull(),
-    dogId: integer('dog_id')
-      .notNull()
-      .references(() => dogs.id, { onDelete: 'cascade' }),
     service: text('service', { enum: ['asilo-diurno', 'asilo-notturno', 'pensione'] }).notNull(),
     startDay: integer('start_day').notNull(),
     endDay: integer('end_day').notNull(),
@@ -66,6 +63,8 @@ export const bookings = sqliteTable(
       .notNull()
       .default('requested'),
     priceCents: integer('price_cents').notNull(),
+    /* Dichiarato dal cliente: decide se i cani oltre il primo pagano meta' o tutto. */
+    sharedSpace: integer('shared_space', { mode: 'boolean' }).notNull().default(false),
     notes: text('notes'),
     staffNote: text('staff_note'),
     createdAt: integer('created_at').notNull(),
@@ -73,8 +72,27 @@ export const bookings = sqliteTable(
   },
   (table) => [
     index('bookings_span_idx').on(table.status, table.occupiesFrom, table.occupiesTo),
-    index('bookings_dog_idx').on(table.dogId),
     uniqueIndex('bookings_reference_idx').on(table.reference),
+  ],
+);
+
+/* Una prenotazione puo' portare piu' cani: la capienza li conta uno per uno. */
+export const bookingDogs = sqliteTable(
+  'booking_dogs',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    bookingId: integer('booking_id')
+      .notNull()
+      .references(() => bookings.id, { onDelete: 'cascade' }),
+    dogId: integer('dog_id')
+      .notNull()
+      .references(() => dogs.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+  },
+  (table) => [
+    index('booking_dogs_booking_idx').on(table.bookingId),
+    index('booking_dogs_dog_idx').on(table.dogId),
+    uniqueIndex('booking_dogs_slot_idx').on(table.bookingId, table.position),
   ],
 );
 
@@ -162,6 +180,7 @@ export type Booking = typeof bookings.$inferSelect;
 export type Dog = typeof dogs.$inferSelect;
 export type Owner = typeof owners.$inferSelect;
 export type Blackout = typeof blackouts.$inferSelect;
+export type BookingDog = typeof bookingDogs.$inferSelect;
 export type EmergencyContactRow = typeof emergencyContacts.$inferSelect;
 export type GalleryImage = typeof galleryImages.$inferSelect;
 export type GalleryCategory = GalleryImage['category'];

@@ -26,6 +26,8 @@ export interface Violation {
   readonly code: ViolationCode;
   readonly field: string;
   readonly message: string;
+  /* Presente solo per le regole sul singolo cane, cosi' il modulo sa dove segnarle. */
+  readonly dogIndex?: number;
 }
 
 export interface DogDeclaration {
@@ -52,7 +54,7 @@ export interface BookingRequest {
   readonly service: ServiceId;
   readonly startDay: number;
   readonly endDay: number;
-  readonly dog: DogDeclaration;
+  readonly dogs: readonly DogDeclaration[];
   readonly emergencyContacts: readonly EmergencyContact[];
   readonly acceptedRules: boolean;
   readonly acceptedPrivacy: boolean;
@@ -120,6 +122,97 @@ export function cancellationOutcome(
   };
 }
 
+/* Ogni cane risponde delle proprie regole: uno idoneo non salva l'altro. */
+export function validateDog(dog: DogDeclaration, startDay: number, dogIndex: number): Violation[] {
+  const violations: Violation[] = [];
+  const mark = (code: ViolationCode, field: string, message: string) =>
+    violations.push({ code, field, message, dogIndex });
+
+  if (dog.birthDay === null) {
+    mark('dog-too-young', 'birthDate', 'Indica la data di nascita del cane.');
+  } else if (ageInMonthsAtCheckIn(dog.birthDay, startDay) < policy.minAgeMonths) {
+    mark(
+      'dog-too-young',
+      'birthDate',
+      'Non accettiamo cani al di sotto di un anno di età alla data di consegna: il cucciolo non ha ancora i comandi di base ed è troppo piccolo per stare senza il proprietario.',
+    );
+  }
+
+  if (dog.sex === 'F' && dog.inHeatOrNear) {
+    mark(
+      'female-in-heat',
+      'inHeatOrNear',
+      'Non sono ammesse femmine in calore o in prossimità dell’inizio del calore.',
+    );
+  }
+
+  if (!dog.hasMicrochip) {
+    mark(
+      'missing-microchip',
+      'hasMicrochip',
+      'Il microchip è obbligatorio e deve essere registrato all’anagrafe canina.',
+    );
+  }
+
+  if (!dog.hasHealthRecord) {
+    mark(
+      'missing-health-record',
+      'hasHealthRecord',
+      'Il libretto sanitario aggiornato va consegnato all’arrivo.',
+    );
+  }
+
+  if (!dog.hasInsurance) {
+    mark(
+      'missing-insurance',
+      'hasInsurance',
+      'È obbligatoria una polizza di responsabilità civile verso terzi in corso di validità.',
+    );
+  }
+
+  if (!dog.hasVaccinations) {
+    mark(
+      'missing-vaccinations',
+      'hasVaccinations',
+      `Vaccinazioni obbligatorie: ${policy.requiredVaccinations.join(', ')}.`,
+    );
+  }
+
+  if (!dog.hasParasiteTreatment) {
+    mark(
+      'missing-parasite-treatment',
+      'hasParasiteTreatment',
+      'Serve un trattamento antipulci, zecche e filaria attivo e certificato.',
+    );
+  }
+
+  if (!dog.isHealthy) {
+    mark(
+      'contagious-or-injured',
+      'isHealthy',
+      'Non accettiamo cani con malattie contagiose, ferite aperte o punti di sutura.',
+    );
+  }
+
+  if (!dog.knowsBaseCommands) {
+    mark(
+      'missing-base-commands',
+      'knowsBaseCommands',
+      `Il cane deve saper eseguire i comandi di base: ${policy.requiredCommands.join(', ')}.`,
+    );
+  }
+
+  if (dog.hasAggressionHistory) {
+    mark(
+      'aggression-declared',
+      'hasAggressionHistory',
+      'Non accettiamo cani con problemi di aggressività, intolleranza o forte reattività.',
+    );
+  }
+
+  return violations;
+}
+
 export function validateBooking(request: BookingRequest, todayDay: number): Violation[] {
   const violations: Violation[] = [];
   const definition = services[request.service];
@@ -158,93 +251,8 @@ export function validateBooking(request: BookingRequest, todayDay: number): Viol
     });
   }
 
-  const dog = request.dog;
-
-  if (dog.birthDay === null) {
-    violations.push({
-      code: 'dog-too-young',
-      field: 'birthDate',
-      message: 'Indica la data di nascita del cane.',
-    });
-  } else if (ageInMonthsAtCheckIn(dog.birthDay, request.startDay) < policy.minAgeMonths) {
-    violations.push({
-      code: 'dog-too-young',
-      field: 'birthDate',
-      message:
-        'Non accettiamo cani al di sotto di un anno di età alla data di consegna: il cucciolo non ha ancora i comandi di base ed è troppo piccolo per stare senza il proprietario.',
-    });
-  }
-
-  if (dog.sex === 'F' && dog.inHeatOrNear) {
-    violations.push({
-      code: 'female-in-heat',
-      field: 'inHeatOrNear',
-      message: 'Non sono ammesse femmine in calore o in prossimità dell’inizio del calore.',
-    });
-  }
-
-  if (!dog.hasMicrochip) {
-    violations.push({
-      code: 'missing-microchip',
-      field: 'hasMicrochip',
-      message: 'Il microchip è obbligatorio e deve essere registrato all’anagrafe canina.',
-    });
-  }
-
-  if (!dog.hasHealthRecord) {
-    violations.push({
-      code: 'missing-health-record',
-      field: 'hasHealthRecord',
-      message: 'Il libretto sanitario aggiornato va consegnato all’arrivo.',
-    });
-  }
-
-  if (!dog.hasInsurance) {
-    violations.push({
-      code: 'missing-insurance',
-      field: 'hasInsurance',
-      message: 'È obbligatoria una polizza di responsabilità civile verso terzi in corso di validità.',
-    });
-  }
-
-  if (!dog.hasVaccinations) {
-    violations.push({
-      code: 'missing-vaccinations',
-      field: 'hasVaccinations',
-      message: `Vaccinazioni obbligatorie: ${policy.requiredVaccinations.join(', ')}.`,
-    });
-  }
-
-  if (!dog.hasParasiteTreatment) {
-    violations.push({
-      code: 'missing-parasite-treatment',
-      field: 'hasParasiteTreatment',
-      message: 'Serve un trattamento antipulci, zecche e filaria attivo e certificato.',
-    });
-  }
-
-  if (!dog.isHealthy) {
-    violations.push({
-      code: 'contagious-or-injured',
-      field: 'isHealthy',
-      message: 'Non accettiamo cani con malattie contagiose, ferite aperte o punti di sutura.',
-    });
-  }
-
-  if (!dog.knowsBaseCommands) {
-    violations.push({
-      code: 'missing-base-commands',
-      field: 'knowsBaseCommands',
-      message: `Il cane deve saper eseguire i comandi di base: ${policy.requiredCommands.join(', ')}.`,
-    });
-  }
-
-  if (dog.hasAggressionHistory) {
-    violations.push({
-      code: 'aggression-declared',
-      field: 'hasAggressionHistory',
-      message: 'Non accettiamo cani con problemi di aggressività, intolleranza o forte reattività.',
-    });
+  for (const [dogIndex, dog] of request.dogs.entries()) {
+    violations.push(...validateDog(dog, request.startDay, dogIndex));
   }
 
   if (completeContacts(request.emergencyContacts).length < policy.minEmergencyContacts) {

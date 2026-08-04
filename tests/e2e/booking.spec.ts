@@ -38,7 +38,11 @@ async function pickDates(page: Page, start: string, end?: string) {
   if (end) await pickDay(page, end);
 }
 
-async function fillDog(page: Page, overrides: Record<string, string> = {}) {
+/* I campi del cane sono numerati per slot; quelli del proprietario no. */
+const DOG_FIELDS = new Set(['dogName', 'breed', 'birthDate', 'sex', 'microchip', 'insurancePolicy', 'vetName', 'vetPhone', 'foodNotes', 'allergies', 'medications', 'hasMicrochip', 'hasHealthRecord', 'hasInsurance', 'hasVaccinations', 'hasParasiteTreatment', 'isHealthy', 'knowsBaseCommands', 'inHeatOrNear', 'hasAggressionHistory']);
+const fieldName = (name: string, slot: number) => (DOG_FIELDS.has(name) ? `${name}${slot}` : name);
+
+async function fillDog(page: Page, overrides: Record<string, string> = {}, slot = 0) {
   const values: Record<string, string> = {
     dogName: 'Ares',
     breed: 'Cane Corso',
@@ -53,7 +57,7 @@ async function fillDog(page: Page, overrides: Record<string, string> = {}) {
   };
 
   for (const [name, value] of Object.entries(values)) {
-    const field = page.locator(`[name="${name}"]`).first();
+    const field = page.locator(`[name="${fieldName(name, slot)}"]`).first();
     if (name === 'sex') await field.selectOption(value);
     else await field.fill(value);
   }
@@ -69,7 +73,7 @@ async function fillEmergencyContacts(page: Page) {
 }
 
 async function tickCompliance(page: Page, extra: string[] = []) {
-  for (const name of [...COMPLIANT_CHECKS, ...extra]) {
+  for (const name of [...COMPLIANT_CHECKS.map((n) => `${n}0`), ...extra]) {
     await page.locator(`[name="${name}"]`).first().check();
   }
   await page.locator('[name="acceptedRules"]').check();
@@ -86,7 +90,9 @@ test.describe('booking', () => {
     await pickDates(page, futureDate(3), futureDate(6));
 
     await expect(page.locator('[name="startDate"]')).toHaveValue(futureDate(3));
-    await expect(page.getByText('3 × 30,00 € / notte')).toBeVisible();
+    const summary = page.locator('dl').filter({ hasText: 'Totale stimato' });
+    await expect(summary.getByText('Pensione — 3 notti')).toBeVisible();
+    await expect(summary.locator('dd').last()).toHaveText('90,00 €');
 
     await fillDog(page);
     await fillEmergencyContacts(page);
@@ -153,7 +159,7 @@ test.describe('booking', () => {
     await pickDates(page, futureDate(22), futureDate(24));
     await fillDog(page, { sex: 'F', microchip: '380260000999000' });
     await fillEmergencyContacts(page);
-    await tickCompliance(page, ['inHeatOrNear']);
+    await tickCompliance(page, ['inHeatOrNear0']);
     await page.getByTestId('submit-booking').click();
 
     await expect(page.getByRole('alert')).toContainText('femmine in calore');
@@ -164,7 +170,7 @@ test.describe('booking', () => {
     await pickDates(page, futureDate(2), futureDate(4));
     await fillDog(page, { microchip: '380260001111222' });
     await fillEmergencyContacts(page);
-    await tickCompliance(page, ['hasAggressionHistory']);
+    await tickCompliance(page, ['hasAggressionHistory0']);
     await page.getByTestId('submit-booking').click();
 
     await expect(page.getByRole('alert')).toContainText('aggressività');
@@ -176,7 +182,7 @@ test.describe('booking', () => {
     await fillDog(page, { microchip: '380260001333444' });
     await fillEmergencyContacts(page);
 
-    for (const name of COMPLIANT_CHECKS) await page.locator(`[name="${name}"]`).first().check();
+    for (const name of COMPLIANT_CHECKS) await page.locator(`[name="${name}0"]`).first().check();
     await page.locator('[name="acceptedRules"]').check();
     await page.getByTestId('submit-booking').click();
 
@@ -232,10 +238,10 @@ test('refuses a flood of submissions from the same client', async ({ request, pa
     service: 'pensione',
     startDate: futureDate(3 + attempt),
     endDate: futureDate(4 + attempt),
-    dogName: 'Ares',
-    birthDate: '2021-05-14',
-    sex: 'M',
-    microchip: `38026000300${String(attempt).padStart(4, '0')}`,
+    dogName0: 'Ares',
+    birthDate0: '2021-05-14',
+    sex0: 'M',
+    microchip0: `38026000300${String(attempt).padStart(4, '0')}`,
     firstName: 'Giulia',
     lastName: 'Ferrari',
     email: 'giulia@example.com',
@@ -246,13 +252,13 @@ test('refuses a flood of submissions from the same client', async ({ request, pa
     emergencyFirstName1: 'Luca',
     emergencyLastName1: 'Verdi',
     emergencyPhone1: '059 111222',
-    hasMicrochip: 'on',
-    hasHealthRecord: 'on',
-    hasInsurance: 'on',
-    hasVaccinations: 'on',
-    hasParasiteTreatment: 'on',
-    isHealthy: 'on',
-    knowsBaseCommands: 'on',
+    hasMicrochip0: 'on',
+    hasHealthRecord0: 'on',
+    hasInsurance0: 'on',
+    hasVaccinations0: 'on',
+    hasParasiteTreatment0: 'on',
+    isHealthy0: 'on',
+    knowsBaseCommands0: 'on',
     acceptedRules: 'on',
     acceptedPrivacy: 'on',
   });

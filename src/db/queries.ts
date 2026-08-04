@@ -1,7 +1,8 @@
-import { and, desc, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
 import { db } from './client';
 import {
   blackouts,
+  bookingDogs,
   bookings,
   capacityOverrides,
   dogs,
@@ -20,16 +21,23 @@ export async function loadOccupancy(originDay: number, dayCount: number): Promis
   const endExclusive = originDay + dayCount;
 
   const [spans, blocks, overrides] = await Promise.all([
+    /* Il peso e' il numero di cani: due cani tolgono due posti, non uno. */
     db
-      .select({ from: bookings.occupiesFrom, toExclusive: bookings.occupiesTo })
+      .select({
+        from: bookings.occupiesFrom,
+        toExclusive: bookings.occupiesTo,
+        weight: count(bookingDogs.id),
+      })
       .from(bookings)
+      .innerJoin(bookingDogs, eq(bookingDogs.bookingId, bookings.id))
       .where(
         and(
           inArray(bookings.status, [...OCCUPYING_STATUSES]),
           lt(bookings.occupiesFrom, endExclusive),
           gte(bookings.occupiesTo, originDay + 1),
         ),
-      ),
+      )
+      .groupBy(bookings.id),
     db
       .select({ from: blackouts.fromDay, toExclusive: blackouts.toDayExclusive })
       .from(blackouts)
@@ -78,15 +86,39 @@ export async function nextGalleryPosition(): Promise<number> {
   return rows.reduce((max, row) => Math.max(max, row.position), 0) + 1;
 }
 
-export async function findBookingWithOwner(id: number) {
-  const [row] = await db
+export interface BookingWithDogs {
+  readonly booking: typeof bookings.$inferSelect;
+  readonly dogs: (typeof dogs.$inferSelect)[];
+  readonly owner: typeof owners.$inferSelect;
+}
+
+function groupByBooking(
+  rows: readonly {
+    booking: typeof bookings.$inferSelect;
+    dog: typeof dogs.$inferSelect;
+    owner: typeof owners.$inferSelect;
+  }[],
+): BookingWithDogs[] {
+  const byId = new Map<number, BookingWithDogs>();
+  for (const row of rows) {
+    const found = byId.get(row.booking.id);
+    if (found) found.dogs.push(row.dog);
+    else byId.set(row.booking.id, { booking: row.booking, dogs: [row.dog], owner: row.owner });
+  }
+  return [...byId.values()];
+}
+
+const bookingDogJoin = () =>
+  db
     .select({ booking: bookings, dog: dogs, owner: owners })
     .from(bookings)
-    .innerJoin(dogs, eq(bookings.dogId, dogs.id))
-    .innerJoin(owners, eq(dogs.ownerId, owners.id))
-    .where(eq(bookings.id, id))
-    .limit(1);
-  return row ?? null;
+    .innerJoin(bookingDogs, eq(bookingDogs.bookingId, bookings.id))
+    .innerJoin(dogs, eq(bookingDogs.dogId, dogs.id))
+    .innerJoin(owners, eq(dogs.ownerId, owners.id));
+
+export async function findBookingWithOwner(id: number): Promise<BookingWithDogs | null> {
+  const rows = await bookingDogJoin().where(eq(bookings.id, id)).orderBy(bookingDogs.position);
+  return groupByBooking(rows)[0] ?? null;
 }
 
 export async function listPublishedReviews() {
@@ -115,26 +147,20 @@ export async function findOwnerByEmail(email: string) {
   return row ?? null;
 }
 
-export async function listBookings(statuses: readonly (typeof bookings.$inferSelect)['status'][]) {
-  return db
-    .select({
-      booking: bookings,
-      dog: dogs,
-      owner: owners,
-    })
-    .from(bookings)
-    .innerJoin(dogs, eq(bookings.dogId, dogs.id))
-    .innerJoin(owners, eq(dogs.ownerId, owners.id))
+export async function listBookings(
+  statuses: readonly (typeof bookings.$inferSelect)['status'][],
+): Promise<BookingWithDogs[]> {
+  const rows = await bookingDogJoin()
     .where(inArray(bookings.status, [...statuses]))
-    .orderBy(bookings.startDay);
+    .orderBy(bookings.startDay, bookingDogs.position);
+  return groupByBooking(rows);
 }
 
-export async function listBookingsOverlapping(fromDay: number, toDayExclusive: number) {
-  return db
-    .select({ booking: bookings, dog: dogs, owner: owners })
-    .from(bookings)
-    .innerJoin(dogs, eq(bookings.dogId, dogs.id))
-    .innerJoin(owners, eq(dogs.ownerId, owners.id))
+export async function listBookingsOverlapping(
+  fromDay: number,
+  toDayExclusive: number,
+): Promise<BookingWithDogs[]> {
+  const rows = await bookingDogJoin()
     .where(
       and(
         inArray(bookings.status, ['requested', 'confirmed']),
@@ -142,7 +168,8 @@ export async function listBookingsOverlapping(fromDay: number, toDayExclusive: n
         gte(bookings.occupiesTo, fromDay + 1),
       ),
     )
-    .orderBy(bookings.startDay);
+    .orderBy(bookings.startDay, bookingDogs.position);
+  return groupByBooking(rows);
 }
 
 export async function listBlackouts(fromDay: number) {
@@ -177,5 +204,5 @@ export async function consumeRateLimit(key: string, limit: number, now: number):
   return true;
 }
 
-export { db, bookings, dogs, owners, blackouts, capacityOverrides, emergencyContacts, galleryImages, reviews };
-export { and, desc, eq, gte, lt, lte, or, inArray };
+export { db, bookingDogs, bookings, dogs, owners, blackouts, capacityOverrides, emergencyContacts, galleryImages, reviews };
+export { and, count, desc, eq, gte, lt, lte, or, inArray };

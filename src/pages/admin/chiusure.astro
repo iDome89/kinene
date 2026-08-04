@@ -6,6 +6,7 @@ import { listBlackouts } from '@/db/queries';
 import { eq } from 'drizzle-orm';
 import { formatDay, formatDayIt, parseDay, todayInBusinessTimezone } from '@/lib/dates';
 import { business } from '@/config/business';
+import { plural } from '@/lib/plural';
 
 export const prerender = false;
 
@@ -177,7 +178,7 @@ const inputClass =
               <li class="flex items-center justify-between gap-4 bg-surface-raised p-4">
                 <p class="m-0 text-sm">
                   <span class="font-medium">{formatDayIt(row.day)}</span>
-                  <span class="text-muted"> · max {row.maxDogs} cani</span>
+                  <span class="text-muted"> · max {plural(row.maxDogs, 'cane', 'cani')}</span>
                 </p>
                 <form method="POST">
                   <input type="hidden" name="action" value="delete-capacity" />

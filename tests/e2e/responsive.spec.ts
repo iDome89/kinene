@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { primaryNav } from '@/lib/links';
 
 const PAGES = ['/', '/prezzi', '/regolamento', '/contatti', '/prenota', '/recensioni'];
 
@@ -31,9 +32,10 @@ test('the mobile menu opens and exposes every primary link', async ({ page }) =>
   await page.goto('/');
   await page.getByLabel('Apri il menu').click();
 
+  /* Letto dalla sorgente: una copia della lista si sfasa al primo cambio di menu. */
   const nav = page.locator('details[open] nav');
-  for (const label of ['Servizi', 'Prezzi', 'Galleria', 'Recensioni', 'Chi siamo', 'Contatti']) {
-    await expect(nav.getByRole('link', { name: label })).toBeVisible();
+  for (const item of primaryNav) {
+    await expect(nav.getByRole('link', { name: item.label })).toBeVisible();
   }
 });
 

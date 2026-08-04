@@ -7,12 +7,12 @@ import { contactsForBookings, findBookingWithOwner, listBookings, loadOccupancy 
 import { notifyDecision } from '@/lib/mailer';
 import type { Decision } from '@/lib/notify';
 import { eq } from 'drizzle-orm';
-import { spanIsAvailable } from '@/lib/availability';
+import { spanHasRoom } from '@/lib/availability';
 import { formatDayIt, formatDayShortIt, todayInBusinessTimezone } from '@/lib/dates';
 import { formatEuro } from '@/lib/pricing';
 import { ageInMonthsAtCheckIn, cancellationNoticeDays } from '@/lib/rules';
 import { isHighSeason } from '@/lib/season';
-import { services } from '@/config/business';
+import { business, services } from '@/config/business';
 
 export const prerender = false;
 
@@ -38,10 +38,12 @@ if (Astro.request.method === 'POST') {
         startDay: row.booking.startDay,
         endDay: row.booking.endDay,
         priceCents: row.booking.priceCents,
-        dogName: row.dog.name,
+        dogNames: row.dogs.map((dog) => dog.name),
+        sharedSpace: row.booking.sharedSpace,
         ownerName: `${row.owner.firstName} ${row.owner.lastName}`,
         ownerEmail: row.owner.email,
-        intakeTestPassed: row.dog.intakeTestStatus === 'passed',
+        /* Basta un cane senza test per dover ricordare il passaggio a tutta la prenotazione. */
+        intakeTestPassed: row.dogs.every((dog) => dog.intakeTestStatus === 'passed'),
         staffNote: staffNote ?? '',
       },
       decision,
@@ -55,7 +57,7 @@ if (Astro.request.method === 'POST') {
     const today = todayInBusinessTimezone();
     const grid = await loadOccupancy(today, Math.max(1, target.occupiesTo - today + 1));
 
-    if (!spanIsAvailable(grid, { from: target.occupiesFrom, toExclusive: target.occupiesTo })) {
+    if (!spanHasRoom(grid, { from: target.occupiesFrom, toExclusive: target.occupiesTo }, row!.dogs.length)) {
       flash = {
         tone: 'error',
         message: `Non c’è più capienza per ${target.reference}. Un’altra prenotazione ha occupato quelle date.`,
@@ -96,6 +98,8 @@ const confirmed = rows
   .slice(0, 12);
 
 const contactsByBooking = await contactsForBookings(pending.map((row) => row.booking.id));
+
+const sharedDiscount = `${Math.round((1 - business.capacity.additionalDogSharedRatio) * 100)}% in meno`;
 
 const STATUS_STYLE: Record<string, string> = {
   requested: 'bg-accent-100 text-accent-800',
@@ -144,11 +148,10 @@ const STATUS_STYLE: Record<string, string> = {
       </p>
     ) : (
       <ul class="mt-6 flex list-none flex-col gap-5 p-0">
-        {pending.map(({ booking, dog, owner }) => {
-          const ageMonths = ageInMonthsAtCheckIn(dog.birthDay, booking.startDay);
+        {pending.map(({ booking, dogs: pack, owner }) => {
           const notice = cancellationNoticeDays(booking.startDay, booking.endDay);
           const highSeason = isHighSeason(booking.startDay);
-          const intakeOk = dog.intakeTestStatus === 'passed';
+          const intakeOk = pack.every((dog) => dog.intakeTestStatus === 'passed');
 
           return (
             <li class="rounded-[var(--radius-card)] border border-edge bg-surface-raised p-6">
@@ -178,27 +181,14 @@ const STATUS_STYLE: Record<string, string> = {
               {!intakeOk && (
                 <p class="m-0 mt-4 flex items-start gap-2.5 rounded-lg border border-danger/35 bg-danger-surface p-3 text-sm text-danger">
                   <Icon name="alert" size={17} class="mt-0.5 shrink-0" />
-                  Test d’ingresso non superato ({dog.intakeTestStatus === 'failed' ? 'respinto' : 'non ancora svolto'}).
+                  {pack.length > 1
+                    ? 'Almeno un cane non ha il test d’ingresso superato.'
+                    : 'Test d’ingresso non superato.'}{' '}
                   Il soggiorno non può iniziare finché non è registrato come superato.
                 </p>
               )}
 
-              <dl class="mt-5 grid gap-x-8 gap-y-3 border-t border-edge pt-5 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <dt class="text-xs uppercase tracking-wide text-muted">Cane</dt>
-                  <dd class="m-0 mt-0.5 font-medium">
-                    {dog.name}
-                    {dog.breed && <span class="font-normal text-muted"> · {dog.breed}</span>}
-                  </dd>
-                  <dd class="m-0 text-xs text-muted">
-                    {dog.sex === 'F' ? 'Femmina' : 'Maschio'} · {Math.floor(ageMonths / 12)} anni {ageMonths % 12} mesi
-                  </dd>
-                </div>
-                <div>
-                  <dt class="text-xs uppercase tracking-wide text-muted">Microchip</dt>
-                  <dd class="m-0 mt-0.5 font-mono text-xs">{dog.microchip}</dd>
-                  {dog.insurancePolicy && <dd class="m-0 text-xs text-muted">RC: {dog.insurancePolicy}</dd>}
-                </div>
+              <dl class="mt-5 grid gap-x-8 gap-y-3 border-t border-edge pt-5 text-sm sm:grid-cols-2">
                 <div>
                   <dt class="text-xs uppercase tracking-wide text-muted">Proprietario</dt>
                   <dd class="m-0 mt-0.5 font-medium">
@@ -211,41 +201,102 @@ const STATUS_STYLE: Record<string, string> = {
                     <a href={`mailto:${owner.email}`} class="text-accent">{owner.email}</a>
                   </dd>
                 </div>
-                <div>
-                  <dt class="text-xs uppercase tracking-wide text-muted">Veterinario</dt>
-                  <dd class="m-0 mt-0.5">{dog.vetName ?? '—'}</dd>
-                  {dog.vetPhone && <dd class="m-0 text-xs text-muted">{dog.vetPhone}</dd>}
-                </div>
+                {pack.length > 1 && (
+                  <div>
+                    <dt class="text-xs uppercase tracking-wide text-muted">Spazio</dt>
+                    <dd class="m-0 mt-0.5 font-medium">
+                      {booking.sharedSpace ? 'Insieme, stesso spazio' : 'Separati'}
+                    </dd>
+                    <dd class="m-0 text-xs text-muted">
+                      {booking.sharedSpace
+                        ? `Dichiarato dal cliente: il secondo cane paga il ${sharedDiscount}.`
+                        : 'Ogni cane paga intero.'}
+                    </dd>
+                  </div>
+                )}
+                {booking.notes && (
+                  <div class="sm:col-span-2">
+                    <dt class="text-xs uppercase tracking-wide text-muted">Note del proprietario</dt>
+                    <dd class="m-0 mt-0.5">{booking.notes}</dd>
+                  </div>
+                )}
               </dl>
 
-              {(dog.foodNotes || dog.allergies || dog.medications || booking.notes) && (
-                <dl class="mt-4 grid gap-3 border-t border-edge pt-4 text-sm sm:grid-cols-2">
-                  {dog.foodNotes && (
-                    <div>
-                      <dt class="text-xs uppercase tracking-wide text-muted">Alimentazione</dt>
-                      <dd class="m-0 mt-0.5">{dog.foodNotes}</dd>
-                    </div>
-                  )}
-                  {dog.allergies && (
-                    <div>
-                      <dt class="text-xs uppercase tracking-wide text-muted">Allergie</dt>
-                      <dd class="m-0 mt-0.5">{dog.allergies}</dd>
-                    </div>
-                  )}
-                  {dog.medications && (
-                    <div>
-                      <dt class="text-xs uppercase tracking-wide text-muted">Terapie</dt>
-                      <dd class="m-0 mt-0.5">{dog.medications}</dd>
-                    </div>
-                  )}
-                  {booking.notes && (
-                    <div>
-                      <dt class="text-xs uppercase tracking-wide text-muted">Note del proprietario</dt>
-                      <dd class="m-0 mt-0.5">{booking.notes}</dd>
-                    </div>
-                  )}
-                </dl>
-              )}
+              <ul class="mt-4 flex list-none flex-col gap-3 p-0">
+                {pack.map((dog) => {
+                  const ageMonths = ageInMonthsAtCheckIn(dog.birthDay, booking.startDay);
+                  const dogIntakeOk = dog.intakeTestStatus === 'passed';
+                  return (
+                    <li class="rounded-[var(--radius-card)] border border-edge bg-surface-sunken p-4">
+                      <div class="flex flex-wrap items-start justify-between gap-3">
+                        <p class="m-0 font-display text-lg font-semibold">
+                          {dog.name}
+                          {dog.breed && <span class="font-sans text-sm font-normal text-muted"> · {dog.breed}</span>}
+                        </p>
+                        <span
+                          class={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            dogIntakeOk ? 'bg-surface-tint text-body' : 'bg-danger-surface text-danger'
+                          }`}
+                        >
+                          {dogIntakeOk
+                            ? 'test superato'
+                            : dog.intakeTestStatus === 'failed'
+                              ? 'test respinto'
+                              : 'test da fare'}
+                        </span>
+                      </div>
+
+                      <dl class="mt-3 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                        <div>
+                          <dt class="text-xs uppercase tracking-wide text-muted">Anagrafica</dt>
+                          <dd class="m-0 mt-0.5">
+                            {dog.sex === 'F' ? 'Femmina' : 'Maschio'} · {Math.floor(ageMonths / 12)} anni{' '}
+                            {ageMonths % 12} mesi
+                          </dd>
+                          <dd class="m-0 font-mono text-xs text-muted">{dog.microchip}</dd>
+                          {dog.insurancePolicy && <dd class="m-0 text-xs text-muted">RC: {dog.insurancePolicy}</dd>}
+                        </div>
+                        <div>
+                          <dt class="text-xs uppercase tracking-wide text-muted">Veterinario</dt>
+                          <dd class="m-0 mt-0.5">{dog.vetName ?? '—'}</dd>
+                          {dog.vetPhone && <dd class="m-0 text-xs text-muted">{dog.vetPhone}</dd>}
+                        </div>
+                        {(dog.foodNotes || dog.allergies || dog.medications) && (
+                          <div>
+                            <dt class="text-xs uppercase tracking-wide text-muted">Cura</dt>
+                            {dog.foodNotes && <dd class="m-0 mt-0.5 text-xs">Pappa: {dog.foodNotes}</dd>}
+                            {dog.allergies && <dd class="m-0 text-xs">Allergie: {dog.allergies}</dd>}
+                            {dog.medications && <dd class="m-0 text-xs">Terapie: {dog.medications}</dd>}
+                          </div>
+                        )}
+                      </dl>
+
+                      {!dogIntakeOk && (
+                        <form method="POST" class="mt-3 flex flex-wrap gap-2">
+                          <input type="hidden" name="id" value={booking.id} />
+                          <input type="hidden" name="dogId" value={dog.id} />
+                          <button
+                            type="submit"
+                            name="action"
+                            value="intake-passed"
+                            class="min-h-11 rounded-full border border-edge-strong px-4 text-sm transition-colors hover:bg-surface-tint"
+                          >
+                            Test superato per {dog.name}
+                          </button>
+                          <button
+                            type="submit"
+                            name="action"
+                            value="intake-failed"
+                            class="min-h-11 rounded-full border border-danger/40 px-4 text-sm text-danger transition-colors hover:bg-danger-surface"
+                          >
+                            Respinto
+                          </button>
+                        </form>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
 
               <div class="mt-4 border-t border-edge pt-4">
                 <p class="m-0 text-xs uppercase tracking-wide text-muted">Contatti di emergenza</p>
@@ -269,7 +320,6 @@ const STATUS_STYLE: Record<string, string> = {
 
               <form method="POST" class="mt-6 flex flex-wrap items-end gap-3 border-t border-edge pt-5">
                 <input type="hidden" name="id" value={booking.id} />
-                <input type="hidden" name="dogId" value={dog.id} />
 
                 <div class="min-w-56 flex-1">
                   <label for={`note-${booking.id}`} class="block text-xs font-medium text-muted">
@@ -299,16 +349,6 @@ const STATUS_STYLE: Record<string, string> = {
                 >
                   Rifiuta
                 </button>
-                {!intakeOk && (
-                  <button
-                    type="submit"
-                    name="action"
-                    value="intake-passed"
-                    class="min-h-11 rounded-full border border-edge-strong px-5 text-sm transition-colors hover:bg-surface-tint"
-                  >
-                    Segna test superato
-                  </button>
-                )}
               </form>
             </li>
           );
@@ -339,11 +379,11 @@ const STATUS_STYLE: Record<string, string> = {
             </tr>
           </thead>
           <tbody>
-            {confirmed.map(({ booking, dog, owner }) => (
+            {confirmed.map(({ booking, dogs: pack, owner }) => (
               <tr class="border-b border-edge last:border-0">
                 <td class="p-4 font-mono text-xs">{booking.reference}</td>
                 <td class="p-4">
-                  <span class="font-medium">{dog.name}</span>
+                  <span class="font-medium">{pack.map((dog) => dog.name).join(', ')}</span>
                   <span class="block text-xs text-muted">
                     {owner.firstName} {owner.lastName}
                   </span>
@@ -353,16 +393,17 @@ const STATUS_STYLE: Record<string, string> = {
                   {formatDayShortIt(booking.startDay)} → {formatDayShortIt(booking.endDay)}
                 </td>
                 <td class="p-4">
-                  {dog.intakeTestStatus === 'passed' ? (
+                  {pack.every((dog) => dog.intakeTestStatus === 'passed') ? (
                     <span class="text-ok">superato</span>
                   ) : (
-                    <span class="text-danger">{dog.intakeTestStatus === 'failed' ? 'respinto' : 'da fare'}</span>
+                    <span class="text-danger">
+                      {pack.some((dog) => dog.intakeTestStatus === 'failed') ? 'respinto' : 'da fare'}
+                    </span>
                   )}
                 </td>
                 <td class="p-4 text-right">
                   <form method="POST" class="inline">
                     <input type="hidden" name="id" value={booking.id} />
-                    <input type="hidden" name="dogId" value={dog.id} />
                     <button
                       type="submit"
                       name="action"

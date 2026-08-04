@@ -13,7 +13,8 @@ import {
 } from '@/lib/dates';
 import { billableUnits, departureDayFor } from '@/lib/availability';
 import { maxDurationLabel, services, type ServiceId } from '@/config/business';
-import { formatEuro } from '@/lib/pricing';
+import { formatEuro, quote } from '@/lib/pricing';
+import { plural } from '@/lib/plural';
 
 type Status = 0 | 1 | 2;
 
@@ -96,6 +97,19 @@ export default function BookingCalendar({
     };
   }, [months]);
 
+  /* I blocchi cane stanno fuori dall'isola: arrivano di qui quantita' e condivisione. */
+  const [pack, setPack] = useState({ count: 1, shared: false });
+
+  useEffect(() => {
+    const onPack = (event: Event) => {
+      const detail = (event as CustomEvent<{ count: number; shared: boolean }>).detail;
+      setPack({ count: Math.max(1, detail?.count ?? 1), shared: Boolean(detail?.shared) });
+    };
+    document.addEventListener('kinene:dogs', onPack);
+    document.dispatchEvent(new CustomEvent('kinene:dogs-request'));
+    return () => document.removeEventListener('kinene:dogs', onPack);
+  }, []);
+
   const resolvedEnd = useMemo(() => {
     if (start === null) return null;
     return departureDayFor(service, start, end ?? start);
@@ -106,16 +120,21 @@ export default function BookingCalendar({
     return Math.max(0, billableUnits(service, start, resolvedEnd));
   }, [service, start, resolvedEnd]);
 
-  const totalCents = units * definition.priceCents;
+  const priced = useMemo(
+    () => quote(service, start ?? 0, resolvedEnd ?? 0, pack.count, pack.shared),
+    [service, start, resolvedEnd, pack.count, pack.shared],
+  );
+  const totalCents = start === null ? 0 : priced.totalCents;
+
+  const hasRoom = (info: DayInfo | undefined) => Boolean(info) && info!.s === 0 && info!.left >= pack.count;
 
   const conflict = useMemo(() => {
     if (start === null || resolvedEnd === null) return null;
     for (let day = start; day <= resolvedEnd; day += 1) {
-      const info = byDay.get(day);
-      if (!info || info.s !== 0) return day;
+      if (!hasRoom(byDay.get(day))) return day;
     }
     return null;
-  }, [byDay, start, resolvedEnd]);
+  }, [byDay, start, resolvedEnd, pack.count]);
 
   const overLimit = units > definition.maxUnits;
 
@@ -134,7 +153,7 @@ export default function BookingCalendar({
 
   function selectDay(day: number) {
     const info = byDay.get(day);
-    if (!info || info.s !== 0) return;
+    if (!hasRoom(info)) return;
 
     if (!picksRange) {
       setStart(day);
@@ -288,7 +307,7 @@ export default function BookingCalendar({
                     const info = byDay.get(day);
                     const status: Status = info?.s ?? 2;
                     const past = day < today;
-                    const selectable = !past && status === 0;
+                    const selectable = !past && status === 0 && (info?.left ?? 0) >= pack.count;
 
                     const inRange =
                       start !== null && resolvedEnd !== null && day >= start && day <= resolvedEnd;
@@ -303,8 +322,12 @@ export default function BookingCalendar({
                         onClick={() => selectDay(day)}
                         aria-pressed={inRange}
                         aria-label={`${formatDayIt(day)} — ${
-                          past ? 'data passata' : STATUS_LABEL[status]
-                        }${info && status === 0 ? `, ${info.left} posti liberi` : ''}`}
+                          past
+                            ? 'data passata'
+                            : status === 0 && !selectable
+                              ? `posti insufficienti per ${plural(pack.count, 'cane', 'cani')}`
+                              : STATUS_LABEL[status]
+                        }${info && status === 0 ? `, ${plural(info.left, 'posto libero', 'posti liberi')}` : ''}`}
                         class={[
                           'relative flex aspect-square min-h-11 items-center justify-center rounded-lg text-[0.95rem] tabular-nums transition-colors',
                           isEdge
@@ -374,10 +397,14 @@ export default function BookingCalendar({
                   {definition.checkOutTo}
                 </dd>
               </div>
+              {priced.lines.map((line) => (
+                <div class="flex items-start justify-between gap-4 border-t border-edge pt-3">
+                  <dt class="text-muted">{line.label}</dt>
+                  <dd class="m-0 tabular-nums">{formatEuro(line.totalCents)}</dd>
+                </div>
+              ))}
               <div class="flex items-center justify-between gap-4 border-t border-edge pt-3">
-                <dt class="text-muted">
-                  {units} × {formatEuro(definition.priceCents)} / {definition.priceUnit}
-                </dt>
+                <dt class="font-medium">Totale stimato</dt>
                 <dd class="m-0 font-display text-xl font-semibold tabular-nums">{formatEuro(totalCents)}</dd>
               </div>
             </dl>
@@ -390,7 +417,9 @@ export default function BookingCalendar({
 
             {conflict !== null && (
               <p class="m-0 mt-4 text-sm font-medium text-danger">
-                Il {formatDayIt(conflict)} non è disponibile. Scegli un altro intervallo.
+                {pack.count > 1
+                  ? `Il ${formatDayIt(conflict)} non ha posto per ${plural(pack.count, 'cane', 'cani')}. Scegli un altro intervallo.`
+                  : `Il ${formatDayIt(conflict)} non è disponibile. Scegli un altro intervallo.`}
               </p>
             )}
 

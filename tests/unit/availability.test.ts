@@ -7,6 +7,7 @@ import {
   firstUnavailableDay,
   inspectDay,
   occupancySpanFor,
+  spanHasRoom,
   spanIsAvailable,
   type DaySpan,
 } from '@/lib/availability';
@@ -201,5 +202,53 @@ describe('grid storage', () => {
     expect(g.counts).toBeInstanceOf(Int16Array);
     expect(g.capacity).toBeInstanceOf(Int16Array);
     expect(g.counts.length).toBe(g.dayCount);
+  });
+});
+
+describe('un posto per cane', () => {
+  const grid = (occupied: { from: number; toExclusive: number; weight?: number }[]) =>
+    buildOccupancy({ originDay: 0, dayCount: 10, defaultCapacity: 5, occupied });
+
+  it('counts a two-dog booking as two places, not one', () => {
+    const taken = grid([{ from: 2, toExclusive: 5, weight: 2 }]);
+    expect(inspectDay(taken, 2).taken).toBe(2);
+    expect(inspectDay(taken, 1).taken).toBe(0);
+  });
+
+  it('still counts a span without a weight as a single place', () => {
+    expect(inspectDay(grid([{ from: 0, toExclusive: 3 }]), 1).taken).toBe(1);
+  });
+
+  it('refuses a two-dog stay on a day with a single place left', () => {
+    const nearlyFull = buildOccupancy({
+      originDay: 0,
+      dayCount: 5,
+      defaultCapacity: 5,
+      occupied: [{ from: 0, toExclusive: 5, weight: 4 }],
+    });
+    expect(spanHasRoom(nearlyFull, { from: 0, toExclusive: 3 }, 1)).toBe(true);
+    expect(spanHasRoom(nearlyFull, { from: 0, toExclusive: 3 }, 2)).toBe(false);
+  });
+
+  it('rejects the whole range when a single day in the middle is short', () => {
+    const bumpy = buildOccupancy({
+      originDay: 0,
+      dayCount: 6,
+      defaultCapacity: 5,
+      occupied: [{ from: 3, toExclusive: 4, weight: 4 }],
+    });
+    expect(spanHasRoom(bumpy, { from: 0, toExclusive: 6 }, 2)).toBe(false);
+    expect(spanHasRoom(bumpy, { from: 0, toExclusive: 3 }, 2)).toBe(true);
+  });
+
+  it('lets spanIsAvailable read the weight off the span itself', () => {
+    const nearlyFull = buildOccupancy({
+      originDay: 0,
+      dayCount: 5,
+      defaultCapacity: 5,
+      occupied: [{ from: 0, toExclusive: 5, weight: 4 }],
+    });
+    expect(spanIsAvailable(nearlyFull, { from: 0, toExclusive: 2 })).toBe(true);
+    expect(spanIsAvailable(nearlyFull, { from: 0, toExclusive: 2, weight: 2 })).toBe(false);
   });
 });

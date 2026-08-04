@@ -32,10 +32,10 @@ export interface NavItem {
 export const primaryNav: readonly NavItem[] = [
   { href: '/servizi/pensione', label: 'Servizi' },
   { href: '/prezzi', label: 'Prezzi' },
+  { href: '/regolamento', label: 'Regolamento' },
   { href: '/galleria', label: 'Galleria' },
   { href: '/recensioni', label: 'Recensioni' },
   { href: '/chi-siamo', label: 'Chi siamo' },
-  { href: '/contatti', label: 'Contatti' },
 ];
 
 export const footerNav: readonly { title: string; items: readonly NavItem[] }[] = [

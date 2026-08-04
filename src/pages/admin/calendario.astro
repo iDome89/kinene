@@ -14,6 +14,7 @@ import {
 } from '@/lib/dates';
 import { isHighSeason } from '@/lib/season';
 import { services } from '@/config/business';
+import { plural } from '@/lib/plural';
 
 export const prerender = false;
 
@@ -77,8 +78,16 @@ const cells = days.map((day, index) => {
   </div>
 
   <p class="mt-3 text-sm text-muted">
-    Occupazione massima del mese: <strong class="text-body tabular-nums">{peak}</strong> cani in un giorno.
-    Contano solo i soggiorni confermati.
+    {
+      peak === 0 ? (
+        'Nessun soggiorno confermato questo mese.'
+      ) : (
+        <>
+          Occupazione massima del mese: <strong class="text-body tabular-nums">{plural(peak, 'cane', 'cani')}</strong>
+          {' '}in un giorno. Contano solo i soggiorni confermati.
+        </>
+      )
+    }
   </p>
 
   <div class="mt-8 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-4 sm:p-6">
@@ -126,11 +135,11 @@ const cells = days.map((day, index) => {
             </tr>
           </thead>
           <tbody>
-            {stays.map(({ booking, dog, owner }) => (
+            {stays.map(({ booking, dogs: pack, owner }) => (
               <tr class="border-b border-edge last:border-0">
                 <td class="p-4 font-mono text-xs">{booking.reference}</td>
                 <td class="p-4">
-                  <span class="font-medium">{dog.name}</span>
+                  <span class="font-medium">{pack.map((dog) => dog.name).join(', ')}</span>
                   <span class="block text-xs text-muted">
                     {owner.firstName} {owner.lastName} · {owner.phone}
                   </span>

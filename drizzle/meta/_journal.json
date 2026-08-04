@@ -29,6 +29,20 @@
       "when": 1785425234402,
       "tag": "0003_wide_millenium_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1785844813518,
+      "tag": "0004_clever_ma_gnuci",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1785844827701,
+      "tag": "0005_familiar_exodus",
+      "breakpoints": true
     }
   ]
 }

@@ -11,15 +11,16 @@ import { business, otherPets, policy, services, type ServiceId } from '@/config/
 import { formatDayIt, todayInBusinessTimezone } from '@/lib/dates';
 import { formatEuro } from '@/lib/pricing';
 import {
+  DOG_SLOTS,
   EMERGENCY_CONTACT_SLOTS,
   bookingReference,
   prepareBooking,
   readSubmission,
-  spanIsAvailable,
+  spanHasRoom,
 } from '@/lib/booking';
 import { loadOccupancy } from '@/db/queries';
 import { db } from '@/db/client';
-import { bookings, dogs, emergencyContacts, owners } from '@/db/schema';
+import { bookingDogs, bookings, dogs, emergencyContacts, owners } from '@/db/schema';
 import { consumeRateLimit, findDogByMicrochip, findOwnerByEmail } from '@/db/queries';
 import { eq } from 'drizzle-orm';
 import type { Violation } from '@/lib/rules';
@@ -59,6 +60,11 @@ if (Astro.request.method === 'POST') {
     previous[`emergencyLastName${slot}`] = contact.lastName;
     previous[`emergencyPhone${slot}`] = contact.phone;
   });
+  fields.dogs.forEach((dog, slot) => {
+    for (const [key, raw] of Object.entries(dog)) {
+      previous[`${key}${slot}`] = typeof raw === 'string' ? raw : raw ? 'on' : '';
+    }
+  });
 
   if (fields.service in services) initialService = fields.service as ServiceId;
 
@@ -77,12 +83,15 @@ if (Astro.request.method === 'POST') {
       const { booking } = prepared;
       const grid = await loadOccupancy(today, booking.occupies.toExclusive - today + 1);
 
-      if (!spanIsAvailable(grid, booking.occupies)) {
+      if (!spanHasRoom(grid, booking.occupies, booking.dogs.length)) {
         violations = [
           {
             code: 'invalid-range',
             field: 'startDate',
-            message: 'Le date scelte non sono più disponibili. Seleziona un altro intervallo.',
+            message:
+              booking.dogs.length > 1
+                ? 'Nelle date scelte non ci sono abbastanza posti per tutti i cani. Prova altre date o chiamaci.'
+                : 'Le date scelte non sono più disponibili. Seleziona un altro intervallo.',
           },
         ];
       } else {
@@ -114,42 +123,48 @@ if (Astro.request.method === 'POST') {
             .where(eq(owners.id, ownerId));
         }
 
-        const existingDog = await findDogByMicrochip(fields.microchip);
-        const dogId =
-          existingDog?.id ??
-          (
-            await db
-              .insert(dogs)
-              .values({
-                ownerId,
-                name: fields.dogName,
-                breed: fields.breed || null,
-                birthDay: booking.birthDay,
-                sex: booking.dog.sex,
-                microchip: fields.microchip,
-                insurancePolicy: fields.insurancePolicy || null,
-                vetName: fields.vetName || null,
-                vetPhone: fields.vetPhone || null,
-                foodNotes: fields.foodNotes || null,
-                allergies: fields.allergies || null,
-                medications: fields.medications || null,
-                createdAt: now,
-              })
-              .returning({ id: dogs.id })
-          )[0]!.id;
+        /* Il microchip e' unico: un cane gia' noto viene aggiornato, non duplicato. */
+        const dogIds: number[] = [];
+        for (const entry of booking.dogs) {
+          const known = await findDogByMicrochip(entry.fields.microchip);
+          const dogId =
+            known?.id ??
+            (
+              await db
+                .insert(dogs)
+                .values({
+                  ownerId,
+                  name: entry.fields.dogName,
+                  breed: entry.fields.breed || null,
+                  birthDay: entry.birthDay,
+                  sex: entry.declaration.sex,
+                  microchip: entry.fields.microchip,
+                  insurancePolicy: entry.fields.insurancePolicy || null,
+                  vetName: entry.fields.vetName || null,
+                  vetPhone: entry.fields.vetPhone || null,
+                  foodNotes: entry.fields.foodNotes || null,
+                  allergies: entry.fields.allergies || null,
+                  medications: entry.fields.medications || null,
+                  createdAt: now,
+                })
+                .returning({ id: dogs.id })
+            )[0]!.id;
 
-        if (existingDog) {
-          await db
-            .update(dogs)
-            .set({
-              name: fields.dogName,
-              foodNotes: fields.foodNotes || null,
-              allergies: fields.allergies || null,
-              medications: fields.medications || null,
-              vetName: fields.vetName || null,
-              vetPhone: fields.vetPhone || null,
-            })
-            .where(eq(dogs.id, dogId));
+          if (known) {
+            await db
+              .update(dogs)
+              .set({
+                name: entry.fields.dogName,
+                foodNotes: entry.fields.foodNotes || null,
+                allergies: entry.fields.allergies || null,
+                medications: entry.fields.medications || null,
+                vetName: entry.fields.vetName || null,
+                vetPhone: entry.fields.vetPhone || null,
+              })
+              .where(eq(dogs.id, dogId));
+          }
+
+          dogIds.push(dogId);
         }
 
         const reference = bookingReference(crypto.getRandomValues(new Uint8Array(6)));
@@ -158,7 +173,6 @@ if (Astro.request.method === 'POST') {
           .insert(bookings)
           .values({
             reference,
-            dogId,
             service: booking.service,
             startDay: booking.startDay,
             endDay: booking.endDay,
@@ -166,10 +180,15 @@ if (Astro.request.method === 'POST') {
             occupiesTo: booking.occupies.toExclusive,
             status: 'requested',
             priceCents: booking.priceCents,
+            sharedSpace: booking.sharedSpace,
             notes: fields.notes || null,
             createdAt: now,
           })
           .returning({ id: bookings.id });
+
+        await db.insert(bookingDogs).values(
+          dogIds.map((dogId, position) => ({ bookingId: created!.id, dogId, position })),
+        );
 
         await db.insert(emergencyContacts).values(
           booking.emergencyContacts.map((contact, position) => ({
@@ -187,7 +206,8 @@ if (Astro.request.method === 'POST') {
           startDay: booking.startDay,
           endDay: booking.endDay,
           priceCents: booking.priceCents,
-          dogName: fields.dogName,
+          dogNames: booking.dogs.map((entry) => entry.fields.dogName),
+          sharedSpace: booking.sharedSpace,
           ownerName: `${fields.firstName} ${fields.lastName}`,
           ownerEmail: fields.email,
           ownerPhone: fields.phone,
@@ -207,10 +227,31 @@ if (Astro.request.method === 'POST') {
   }
 }
 
-const errorFor = (field: string) => violations.find((violation) => violation.field === field)?.message;
+/* Un errore appartiene a un cane preciso: senza l'indice finirebbe sul primo. */
+const errorFor = (field: string, dogIndex?: number) =>
+  violations.find(
+    (violation) => violation.field === field && (violation.dogIndex ?? undefined) === dogIndex,
+  )?.message;
 const value = (key: string) => previous[key] ?? '';
 const checked = (key: string) => previous[key] === 'on';
 const isResubmission = Astro.request.method === 'POST';
+
+/* Uno slot resta aperto se il cliente ci ha gia' scritto dentro o se ha un errore da correggere. */
+const dogSlotOpen = (slot: number) =>
+  Boolean(value(`dogName${slot}`) || value(`microchip${slot}`) || value(`birthDate${slot}`)) ||
+  violations.some((violation) => violation.dogIndex === slot);
+
+const sharedDiscountLabel = `${Math.round((1 - business.capacity.additionalDogSharedRatio) * 100)}% in meno`;
+
+const DOG_DECLARATIONS = [
+  { name: 'hasMicrochip', label: 'Il cane ha il microchip registrato all’anagrafe canina' },
+  { name: 'hasHealthRecord', label: 'Consegnerò il libretto sanitario aggiornato all’arrivo' },
+  { name: 'hasInsurance', label: 'Il cane è coperto da polizza RC verso terzi in corso di validità' },
+  { name: 'hasVaccinations', label: `Vaccinazioni in regola: ${policy.requiredVaccinations.join(', ')}` },
+  { name: 'hasParasiteTreatment', label: 'Trattamento antipulci, zecche e filaria attivo e certificato' },
+  { name: 'isHealthy', label: 'Il cane non ha malattie contagiose, ferite aperte o punti di sutura' },
+  { name: 'knowsBaseCommands', label: `Il cane esegue i comandi base: ${policy.requiredCommands.join(', ')}` },
+];
 
 const inputClass =
   'mt-1.5 block min-h-11 w-full rounded-lg border border-edge-strong bg-surface-raised px-3.5 py-2 outline-none transition-colors focus:border-accent';
@@ -278,6 +319,12 @@ const hintClass = 'mt-1 block text-xs text-muted';
         />
 
         <Section>
+          <p class="mb-8 flex flex-wrap items-center gap-2 text-sm text-muted" data-testid="rules-first">
+            <Icon name="file" size={17} class="shrink-0 text-primary" />
+            Prima di compilare, controlla i requisiti di ammissione:
+            <a href="/regolamento" class="font-medium">leggi il regolamento</a>.
+          </p>
+
           <Callout tone="info" icon="paw" title="Hai un animale che non è un cane?" class="mb-10" data-testid="other-pets-notice">
             <p class="m-0">
               {otherPets.bookingNote} Chiama il <a href={telLink()}>{business.contact.phoneDisplay}</a>
@@ -342,132 +389,178 @@ const hintClass = 'mt-1 block text-xs text-muted';
                 </div>
               </noscript>
 
-              <h2 class="mt-14 font-display text-2xl font-semibold">2. Il cane</h2>
-              <div class="mt-6 grid gap-5 sm:grid-cols-2">
-                <div>
-                  <label class={labelClass} for="field-dogName">Nome <span aria-hidden="true">*</span></label>
-                  <input id="field-dogName" class={inputClass} type="text" name="dogName" value={value('dogName')} required autocomplete="off" />
-                  {errorFor('dogName') && <span class="mt-1 block text-xs text-danger">{errorFor('dogName')}</span>}
-                </div>
-                <div>
-                  <label class={labelClass} for="field-breed">Razza</label>
-                  <input id="field-breed" class={inputClass} type="text" name="breed" value={value('breed')} />
-                </div>
-                <div>
-                  <label class={labelClass} for="field-birthDate">Data di nascita <span aria-hidden="true">*</span></label>
-                  <input id="field-birthDate" class={inputClass} type="date" name="birthDate" value={value('birthDate')} required />
-                  <span class={hintClass}>Non accettiamo cani sotto un anno di età.</span>
-                  {errorFor('birthDate') && <span class="mt-1 block text-xs text-danger">{errorFor('birthDate')}</span>}
-                </div>
-                <div>
-                  <label class={labelClass} for="field-sex">Sesso <span aria-hidden="true">*</span></label>
-                  <select id="field-sex" class={inputClass} name="sex" required>
-                    <option value="">Seleziona…</option>
-                    <option value="M" selected={value('sex') === 'M'}>Maschio</option>
-                    <option value="F" selected={value('sex') === 'F'}>Femmina</option>
-                  </select>
-                  {errorFor('sex') && <span class="mt-1 block text-xs text-danger">{errorFor('sex')}</span>}
-                </div>
-                <div>
-                  <label class={labelClass} for="field-microchip">Microchip <span aria-hidden="true">*</span></label>
-                  <input id="field-microchip" class={inputClass} type="text" inputmode="numeric" name="microchip" value={value('microchip')} required pattern="[0-9\s]{15,20}" />
-                  <span class={hintClass}>15 cifre, registrato all’anagrafe canina.</span>
-                  {errorFor('microchip') && <span class="mt-1 block text-xs text-danger">{errorFor('microchip')}</span>}
-                </div>
-                <div>
-                  <label class={labelClass} for="field-insurancePolicy">Polizza RC — estremi</label>
-                  <input id="field-insurancePolicy" class={inputClass} type="text" name="insurancePolicy" value={value('insurancePolicy')} />
-                </div>
-                <div>
-                  <label class={labelClass} for="field-vetName">Veterinario di fiducia</label>
-                  <input id="field-vetName" class={inputClass} type="text" name="vetName" value={value('vetName')} />
-                  <span class={hintClass}>In sua assenza ci rivolgiamo a {policy.emergencyClinic}.</span>
-                </div>
-                <div>
-                  <label class={labelClass} for="field-vetPhone">Telefono del veterinario</label>
-                  <input id="field-vetPhone" class={inputClass} type="tel" name="vetPhone" value={value('vetPhone')} />
-                </div>
-                <div class="sm:col-span-2">
-                  <label class={labelClass} for="field-foodNotes">Alimentazione e orari dei pasti</label>
-                  <textarea id="field-foodNotes" class={`${inputClass} min-h-24`} name="foodNotes" rows="3">{value('foodNotes')}</textarea>
-                  <span class={hintClass}>Il cibo abituale lo porti tu, con l’eventuale misurino.</span>
-                </div>
-                <div>
-                  <label class={labelClass} for="field-allergies">Allergie e diete speciali</label>
-                  <textarea id="field-allergies" class={`${inputClass} min-h-20`} name="allergies" rows="2">{value('allergies')}</textarea>
-                </div>
-                <div>
-                  <label class={labelClass} for="field-medications">Terapie in corso</label>
-                  <textarea id="field-medications" class={`${inputClass} min-h-20`} name="medications" rows="2">{value('medications')}</textarea>
-                  <span class={hintClass}>Solo dietro prescrizione veterinaria scritta.</span>
-                </div>
-              </div>
-
-              <h2 class="mt-14 font-display text-2xl font-semibold">3. Dichiarazioni obbligatorie</h2>
+              <h2 class="mt-14 font-display text-2xl font-semibold">2. I cani</h2>
               <p class="mt-2 text-sm text-muted">
-                Sono i requisiti del regolamento. Vengono verificati alla consegna.
+                Ogni cane ha le sue dichiarazioni: valgono una per animale, non una per prenotazione.
+                Puoi portarne fino a {DOG_SLOTS} in una sola richiesta.
               </p>
 
-              <ul class="mt-6 flex list-none flex-col gap-px overflow-hidden rounded-[var(--radius-card)] border border-edge bg-edge p-0">
-                {
-                  [
-                    { name: 'hasMicrochip', label: 'Il cane ha il microchip registrato all’anagrafe canina' },
-                    { name: 'hasHealthRecord', label: 'Consegnerò il libretto sanitario aggiornato all’arrivo' },
-                    { name: 'hasInsurance', label: 'Il cane è coperto da polizza RC verso terzi in corso di validità' },
-                    { name: 'hasVaccinations', label: `Vaccinazioni in regola: ${policy.requiredVaccinations.join(', ')}` },
-                    { name: 'hasParasiteTreatment', label: 'Trattamento antipulci, zecche e filaria attivo e certificato' },
-                    { name: 'isHealthy', label: 'Il cane non ha malattie contagiose, ferite aperte o punti di sutura' },
-                    { name: 'knowsBaseCommands', label: `Il cane esegue i comandi base: ${policy.requiredCommands.join(', ')}` },
-                  ].map((item) => (
-                    <li class="bg-surface-raised">
-                      <label class="flex min-h-14 cursor-pointer items-start gap-3.5 p-4" for={`field-${item.name}`}>
-                        <input
-                          id={`field-${item.name}`}
-                          type="checkbox"
-                          name={item.name}
-                          checked={isResubmission ? checked(item.name) : false}
-                          class="mt-0.5 h-5 w-5 shrink-0 accent-[var(--t-primary)]"
-                        />
-                        <span class="text-sm leading-relaxed">
-                          {item.label}
-                          {errorFor(item.name) && (
-                            <span class="mt-1 block text-xs font-medium text-danger">{errorFor(item.name)}</span>
-                          )}
-                        </span>
-                      </label>
-                    </li>
-                  ))
-                }
+              {
+                Array.from({ length: DOG_SLOTS }, (_, slot) => slot).map((slot) => (
+                  <fieldset
+                    class="m-0 mt-6 rounded-[var(--radius-card)] border border-edge bg-surface-sunken p-5 sm:p-6"
+                    data-dog-block={slot}
+                    data-collapsed={slot > 0 && !dogSlotOpen(slot) ? '' : undefined}
+                  >
+                    <legend class="px-2 font-display text-lg font-semibold">
+                      {slot === 0 ? 'Primo cane' : `Cane ${slot + 1}`}
+                    </legend>
 
-                <li class="bg-surface-raised">
-                  <label class="flex min-h-14 cursor-pointer items-start gap-3.5 p-4" for="field-inHeatOrNear">
-                    <input id="field-inHeatOrNear" type="checkbox" name="inHeatOrNear" checked={checked('inHeatOrNear')} class="mt-0.5 h-5 w-5 shrink-0 accent-[var(--t-primary)]" />
-                    <span class="text-sm leading-relaxed">
-                      La femmina è in calore o in prossimità del calore nelle date richieste
-                      <span class="mt-1 block text-xs text-muted">
-                        Se è così non possiamo accettarla: contattaci e riprogrammiamo senza penali.
-                      </span>
-                      {errorFor('inHeatOrNear') && (
-                        <span class="mt-1 block text-xs font-medium text-danger">{errorFor('inHeatOrNear')}</span>
-                      )}
+                    {slot > 0 && (
+                      <div class="mb-5 flex justify-end">
+                        <button
+                          type="button"
+                          data-remove-dog={slot}
+                          class="min-h-11 rounded-full border border-edge-strong px-4 text-sm transition-colors hover:bg-surface-tint"
+                        >
+                          Togli questo cane
+                        </button>
+                      </div>
+                    )}
+
+                    <div class="grid gap-5 sm:grid-cols-2">
+                      <div>
+                        <label class={labelClass} for={`field-dogName${slot}`}>Nome <span aria-hidden="true">*</span></label>
+                        <input id={`field-dogName${slot}`} class={inputClass} type="text" name={`dogName${slot}`} value={value(`dogName${slot}`)} required={slot === 0} autocomplete="off" />
+                        {errorFor('dogName', slot) && <span class="mt-1 block text-xs text-danger">{errorFor('dogName', slot)}</span>}
+                      </div>
+                      <div>
+                        <label class={labelClass} for={`field-breed${slot}`}>Razza</label>
+                        <input id={`field-breed${slot}`} class={inputClass} type="text" name={`breed${slot}`} value={value(`breed${slot}`)} />
+                      </div>
+                      <div>
+                        <label class={labelClass} for={`field-birthDate${slot}`}>Data di nascita <span aria-hidden="true">*</span></label>
+                        <input id={`field-birthDate${slot}`} class={inputClass} type="date" name={`birthDate${slot}`} value={value(`birthDate${slot}`)} required={slot === 0} />
+                        <span class={hintClass}>Non accettiamo cani sotto un anno di età.</span>
+                        {errorFor('birthDate', slot) && <span class="mt-1 block text-xs text-danger">{errorFor('birthDate', slot)}</span>}
+                      </div>
+                      <div>
+                        <label class={labelClass} for={`field-sex${slot}`}>Sesso <span aria-hidden="true">*</span></label>
+                        <select id={`field-sex${slot}`} class={inputClass} name={`sex${slot}`} required={slot === 0}>
+                          <option value="">Seleziona…</option>
+                          <option value="M" selected={value(`sex${slot}`) === 'M'}>Maschio</option>
+                          <option value="F" selected={value(`sex${slot}`) === 'F'}>Femmina</option>
+                        </select>
+                        {errorFor('sex', slot) && <span class="mt-1 block text-xs text-danger">{errorFor('sex', slot)}</span>}
+                      </div>
+                      <div>
+                        <label class={labelClass} for={`field-microchip${slot}`}>Microchip <span aria-hidden="true">*</span></label>
+                        <input id={`field-microchip${slot}`} class={inputClass} type="text" inputmode="numeric" name={`microchip${slot}`} value={value(`microchip${slot}`)} required={slot === 0} pattern="[0-9\s]{15,20}" />
+                        <span class={hintClass}>15 cifre, registrato all’anagrafe canina.</span>
+                        {errorFor('microchip', slot) && <span class="mt-1 block text-xs text-danger">{errorFor('microchip', slot)}</span>}
+                      </div>
+                      <div>
+                        <label class={labelClass} for={`field-insurancePolicy${slot}`}>Polizza RC — estremi</label>
+                        <input id={`field-insurancePolicy${slot}`} class={inputClass} type="text" name={`insurancePolicy${slot}`} value={value(`insurancePolicy${slot}`)} />
+                      </div>
+                      <div>
+                        <label class={labelClass} for={`field-vetName${slot}`}>Veterinario di fiducia</label>
+                        <input id={`field-vetName${slot}`} class={inputClass} type="text" name={`vetName${slot}`} value={value(`vetName${slot}`)} />
+                        <span class={hintClass}>In sua assenza ci rivolgiamo a {policy.emergencyClinic}.</span>
+                      </div>
+                      <div>
+                        <label class={labelClass} for={`field-vetPhone${slot}`}>Telefono del veterinario</label>
+                        <input id={`field-vetPhone${slot}`} class={inputClass} type="tel" name={`vetPhone${slot}`} value={value(`vetPhone${slot}`)} />
+                      </div>
+                      <div class="sm:col-span-2">
+                        <label class={labelClass} for={`field-foodNotes${slot}`}>Alimentazione e orari dei pasti</label>
+                        <textarea id={`field-foodNotes${slot}`} class={`${inputClass} min-h-24`} name={`foodNotes${slot}`} rows="3">{value(`foodNotes${slot}`)}</textarea>
+                        <span class={hintClass}>Il cibo abituale lo porti tu, con l’eventuale misurino.</span>
+                      </div>
+                      <div>
+                        <label class={labelClass} for={`field-allergies${slot}`}>Allergie e diete speciali</label>
+                        <textarea id={`field-allergies${slot}`} class={`${inputClass} min-h-20`} name={`allergies${slot}`} rows="2">{value(`allergies${slot}`)}</textarea>
+                      </div>
+                      <div>
+                        <label class={labelClass} for={`field-medications${slot}`}>Terapie in corso</label>
+                        <textarea id={`field-medications${slot}`} class={`${inputClass} min-h-20`} name={`medications${slot}`} rows="2">{value(`medications${slot}`)}</textarea>
+                        <span class={hintClass}>Solo dietro prescrizione veterinaria scritta.</span>
+                      </div>
+                    </div>
+
+                    <p class="mt-7 text-sm font-semibold">Dichiarazioni obbligatorie</p>
+                    <p class="mt-1 text-sm text-muted">Sono i requisiti del regolamento. Vengono verificati alla consegna.</p>
+
+                    <ul class="mt-4 flex list-none flex-col gap-px overflow-hidden rounded-[var(--radius-card)] border border-edge bg-edge p-0">
+                      {DOG_DECLARATIONS.map((item) => (
+                        <li class="bg-surface-raised">
+                          <label class="flex min-h-14 cursor-pointer items-start gap-3.5 p-4" for={`field-${item.name}${slot}`}>
+                            <input
+                              id={`field-${item.name}${slot}`}
+                              type="checkbox"
+                              name={`${item.name}${slot}`}
+                              checked={isResubmission ? checked(`${item.name}${slot}`) : false}
+                              class="mt-0.5 h-5 w-5 shrink-0 accent-[var(--t-primary)]"
+                            />
+                            <span class="text-sm leading-relaxed">
+                              {item.label}
+                              {errorFor(item.name, slot) && (
+                                <span class="mt-1 block text-xs font-medium text-danger">{errorFor(item.name, slot)}</span>
+                              )}
+                            </span>
+                          </label>
+                        </li>
+                      ))}
+
+                      <li class="bg-surface-raised">
+                        <label class="flex min-h-14 cursor-pointer items-start gap-3.5 p-4" for={`field-inHeatOrNear${slot}`}>
+                          <input id={`field-inHeatOrNear${slot}`} type="checkbox" name={`inHeatOrNear${slot}`} checked={checked(`inHeatOrNear${slot}`)} class="mt-0.5 h-5 w-5 shrink-0 accent-[var(--t-primary)]" />
+                          <span class="text-sm leading-relaxed">
+                            La femmina è in calore o in prossimità del calore nelle date richieste
+                            <span class="mt-1 block text-xs text-muted">
+                              Se è così non possiamo accettarla: contattaci e riprogrammiamo senza penali.
+                            </span>
+                            {errorFor('inHeatOrNear', slot) && (
+                              <span class="mt-1 block text-xs font-medium text-danger">{errorFor('inHeatOrNear', slot)}</span>
+                            )}
+                          </span>
+                        </label>
+                      </li>
+
+                      <li class="bg-surface-raised">
+                        <label class="flex min-h-14 cursor-pointer items-start gap-3.5 p-4" for={`field-hasAggressionHistory${slot}`}>
+                          <input id={`field-hasAggressionHistory${slot}`} type="checkbox" name={`hasAggressionHistory${slot}`} checked={checked(`hasAggressionHistory${slot}`)} class="mt-0.5 h-5 w-5 shrink-0 accent-[var(--t-primary)]" />
+                          <span class="text-sm leading-relaxed">
+                            Il cane ha manifestato aggressività, intolleranza o forte reattività verso persone o altri animali
+                            {errorFor('hasAggressionHistory', slot) && (
+                              <span class="mt-1 block text-xs font-medium text-danger">{errorFor('hasAggressionHistory', slot)}</span>
+                            )}
+                          </span>
+                        </label>
+                      </li>
+                    </ul>
+                  </fieldset>
+                ))
+              }
+
+              <div class="mt-6 flex flex-col gap-4" data-dog-controls>
+                <button
+                  type="button"
+                  data-add-dog
+                  hidden
+                  class="min-h-11 self-start rounded-full border border-edge-strong px-5 text-sm font-medium transition-colors hover:bg-surface-tint"
+                >
+                  + Aggiungi un cane
+                </button>
+
+                <label
+                  class="flex cursor-pointer items-start gap-3.5 rounded-[var(--radius-card)] border border-edge bg-surface-raised p-4"
+                  data-shared-space
+                  data-collapsed={dogSlotOpen(1) ? undefined : ''}
+                  for="field-sharedSpace"
+                >
+                  <input id="field-sharedSpace" type="checkbox" name="sharedSpace" checked={checked('sharedSpace')} class="mt-0.5 h-5 w-5 shrink-0 accent-[var(--t-primary)]" />
+                  <span class="text-sm leading-relaxed">
+                    I cani stanno insieme nello stesso spazio
+                    <span class="mt-1 block text-xs text-muted">
+                      Se dormono insieme, dal secondo cane paghi il {sharedDiscountLabel}. In spazi separati
+                      ogni cane paga intero. In entrambi i casi occupano un posto a testa.
                     </span>
-                  </label>
-                </li>
+                  </span>
+                </label>
+              </div>
 
-                <li class="bg-surface-raised">
-                  <label class="flex min-h-14 cursor-pointer items-start gap-3.5 p-4" for="field-hasAggressionHistory">
-                    <input id="field-hasAggressionHistory" type="checkbox" name="hasAggressionHistory" checked={checked('hasAggressionHistory')} class="mt-0.5 h-5 w-5 shrink-0 accent-[var(--t-primary)]" />
-                    <span class="text-sm leading-relaxed">
-                      Il cane ha manifestato aggressività, intolleranza o forte reattività verso persone o altri animali
-                      {errorFor('hasAggressionHistory') && (
-                        <span class="mt-1 block text-xs font-medium text-danger">{errorFor('hasAggressionHistory')}</span>
-                      )}
-                    </span>
-                  </label>
-                </li>
-              </ul>
-
-              <h2 class="mt-14 font-display text-2xl font-semibold">4. Contatti di emergenza</h2>
+              <h2 class="mt-14 font-display text-2xl font-semibold">3. Contatti di emergenza</h2>
               <p class="mt-2 text-sm text-muted">
                 Servono almeno {policy.minEmergencyContacts} persone raggiungibili e in grado di venire a
                 prendere il cane se tu non fossi reperibile. Il terzo contatto è facoltativo.
@@ -541,7 +634,7 @@ const hintClass = 'mt-1 block text-xs text-muted';
                 }
               </div>
 
-              <h2 class="mt-14 font-display text-2xl font-semibold">5. I tuoi dati</h2>
+              <h2 class="mt-14 font-display text-2xl font-semibold">4. I tuoi dati</h2>
               <div class="mt-6 grid gap-5 sm:grid-cols-2">
                 <div>
                   <label class={labelClass} for="field-firstName">Nome <span aria-hidden="true">*</span></label>
@@ -635,4 +728,96 @@ const hintClass = 'mt-1 block text-xs text-muted';
       </>
     )
   }
+
+<script>
+  /*
+    I blocchi cane esistono gia' nell'HTML: senza JS restano tutti visibili e il
+    modulo funziona lo stesso. Lo script li richiude e aggiunge il pulsante.
+  */
+  const form = document.querySelector<HTMLFormElement>('form[method="POST"]');
+  const blocks = [...document.querySelectorAll<HTMLElement>('[data-dog-block]')];
+  const addButton = document.querySelector<HTMLButtonElement>('[data-add-dog]');
+  const sharedRow = document.querySelector<HTMLElement>('[data-shared-space]');
+  const sharedInput = document.querySelector<HTMLInputElement>('#field-sharedSpace');
+
+  if (form && blocks.length > 1 && addButton && sharedRow) {
+    const isOpen = (block: HTMLElement) => !block.hasAttribute('data-collapsed');
+    const openCount = () => blocks.filter(isOpen).length;
+
+    const announce = () => {
+      document.dispatchEvent(
+        new CustomEvent('kinene:dogs', {
+          detail: { count: openCount(), shared: Boolean(sharedInput?.checked) },
+        }),
+      );
+    };
+
+    const paint = () => {
+      const open = openCount();
+      addButton.hidden = open >= blocks.length;
+      sharedRow.toggleAttribute('data-collapsed', open < 2);
+      /* Un cane solo non puo' condividere niente: la casella non deve restare spuntata. */
+      if (open < 2 && sharedInput) sharedInput.checked = false;
+      for (const block of blocks) {
+        for (const field of block.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[required]')) {
+          field.disabled = !isOpen(block);
+        }
+      }
+      announce();
+    };
+
+    const setOpen = (block: HTMLElement, open: boolean) => {
+      block.toggleAttribute('data-collapsed', !open);
+      if (!open) {
+        for (const field of block.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('input, textarea, select')) {
+          if (field.type === 'checkbox' || field.type === 'radio') (field as HTMLInputElement).checked = false;
+          else field.value = '';
+        }
+      }
+      paint();
+    };
+
+    addButton.addEventListener('click', () => {
+      const next = blocks.find((block) => !isOpen(block));
+      if (!next) return;
+      setOpen(next, true);
+      next.querySelector<HTMLInputElement>('input[type="text"]')?.focus();
+    });
+
+    for (const block of blocks) {
+      block.querySelector('[data-remove-dog]')?.addEventListener('click', () => setOpen(block, false));
+    }
+
+    sharedInput?.addEventListener('change', announce);
+    document.addEventListener('kinene:dogs-request', announce);
+
+    /* Marca obbligatori i campi del secondo cane solo quando e' davvero in gioco. */
+    for (const block of blocks.slice(1)) {
+      for (const field of block.querySelectorAll<HTMLInputElement>('input[name^="dogName"], input[name^="birthDate"], input[name^="microchip"]')) {
+        field.required = true;
+      }
+      for (const field of block.querySelectorAll<HTMLSelectElement>('select[name^="sex"]')) {
+        field.required = true;
+      }
+    }
+
+    paint();
+  }
+</script>
+<style>
+  [data-collapsed] {
+    display: none;
+  }
+</style>
+
+<noscript>
+  <style>
+    /* Senza JS non c'e' nessun pulsante per aprirlo: meglio mostrarlo e basta. */
+    [data-dog-block][data-collapsed],
+    [data-shared-space][data-collapsed] {
+      display: revert;
+    }
+  </style>
+</noscript>
+
 </Base>

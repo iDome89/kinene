@@ -37,10 +37,10 @@ async function submitBooking(page: Page, start: string, end: string, microchip: 
   await pickDay(page, start);
   await pickDay(page, end);
 
-  await page.locator('[name="dogName"]').fill('Bruno');
-  await page.locator('[name="birthDate"]').fill('2020-01-10');
-  await page.locator('[name="sex"]').selectOption('M');
-  await page.locator('[name="microchip"]').fill(microchip);
+  await page.locator('[name="dogName0"]').fill('Bruno');
+  await page.locator('[name="birthDate0"]').fill('2020-01-10');
+  await page.locator('[name="sex0"]').selectOption('M');
+  await page.locator('[name="microchip0"]').fill(microchip);
   await page.locator('[name="firstName"]').fill('Marco');
   await page.locator('[name="lastName"]').fill('Rossi');
   await page.locator('[name="email"]').fill('marco@example.com');
@@ -53,8 +53,8 @@ async function submitBooking(page: Page, start: string, end: string, microchip: 
   await page.locator('[name="emergencyPhone1"]').fill('059 111222');
 
   for (const name of [
-    'hasMicrochip','hasHealthRecord','hasInsurance','hasVaccinations',
-    'hasParasiteTreatment','isHealthy','knowsBaseCommands','acceptedRules','acceptedPrivacy',
+    'hasMicrochip0','hasHealthRecord0','hasInsurance0','hasVaccinations0',
+    'hasParasiteTreatment0','isHealthy0','knowsBaseCommands0','acceptedRules','acceptedPrivacy',
   ]) {
     await page.locator(`[name="${name}"]`).first().check();
   }

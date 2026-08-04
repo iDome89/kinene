@@ -1,3 +1,5 @@
+import { plural } from '@/lib/plural';
+
 export const NEEDS_CONFIRMATION = Symbol('needs-confirmation');
 
 export const business = {
@@ -32,6 +34,10 @@ export const business = {
   capacity: {
     defaultMaxDogs: 5,
     closedWeekdays: [] as number[],
+    /* Oltre questo numero si passa dal telefono: alzarlo e' una riga, non una migrazione. */
+    maxDogsPerBooking: 2,
+    /* Sconto sui cani successivi al primo, valido solo se condividono lo spazio. */
+    additionalDogSharedRatio: 0.5,
   },
 } as const;
 
@@ -149,8 +155,8 @@ export const services: Readonly<Record<ServiceId, ServiceDefinition>> = {
 } as const;
 
 export function maxDurationLabel(service: ServiceDefinition): string {
-  const plural = service.priceUnit === 'giorno' ? 'giorni' : 'notti';
-  return `${service.maxUnits} ${service.maxUnits === 1 ? service.priceUnit : plural}`;
+  const many = service.priceUnit === 'giorno' ? 'giorni' : 'notti';
+  return plural(service.maxUnits, service.priceUnit, many);
 }
 
 export const serviceList: readonly ServiceDefinition[] = [

@@ -27,14 +27,14 @@ const path = Astro.url.pathname;
       </span>
     </a>
 
-    <nav aria-label="Navigazione principale" class="hidden items-center gap-1 lg:flex">
+    <nav aria-label="Navigazione principale" class="hidden items-center gap-0.5 lg:flex xl:gap-1">
       {
         primaryNav.map((item) => (
           <a
             href={item.href}
             aria-current={isActivePath(path, item.href) ? 'page' : undefined}
             class:list={[
-              'rounded-full px-4 py-2 text-[0.95rem] no-underline transition-colors duration-200',
+              'whitespace-nowrap rounded-full px-3 py-2 text-[0.95rem] no-underline transition-colors duration-200 xl:px-4',
               isActivePath(path, item.href)
                 ? 'bg-surface-tint font-medium text-body'
                 : 'text-muted hover:bg-surface-tint hover:text-body',
@@ -49,10 +49,11 @@ const path = Astro.url.pathname;
     <div class="hidden items-center gap-2 lg:flex">
       <a
         href={telLink()}
-        class="inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-[0.95rem] text-muted no-underline transition-colors hover:bg-surface-tint hover:text-body"
+        aria-label={`Telefona al ${business.contact.phoneDisplay}`}
+        class="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-[0.95rem] text-muted no-underline transition-colors hover:bg-surface-tint hover:text-body"
       >
         <Icon name="phone" size={17} />
-        {business.contact.phoneDisplay}
+        <span class="hidden lg:inline">{business.contact.phoneDisplay}</span>
       </a>
       <Button href="/prenota" variant="accent">Prenota</Button>
     </div>

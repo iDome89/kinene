@@ -4,6 +4,8 @@ import type { ServiceId } from '@/config/business';
 export interface DaySpan {
   readonly from: number;
   readonly toExclusive: number;
+  /* Quanti posti consuma: un cane a testa, quindi due cani pesano due. */
+  readonly weight?: number;
 }
 
 export interface CapacityOverride {
@@ -81,7 +83,8 @@ export function buildOccupancy(input: OccupancyInput): OccupancyGrid {
   for (const span of input.occupied ?? []) {
     const from = Math.max(0, span.from - originDay);
     const to = Math.min(dayCount, span.toExclusive - originDay);
-    for (let index = from; index < to; index += 1) counts[index] = (counts[index] ?? 0) + 1;
+    const weight = span.weight ?? 1;
+    for (let index = from; index < to; index += 1) counts[index] = (counts[index] ?? 0) + weight;
   }
 
   return { originDay, dayCount, counts, capacity };
@@ -108,7 +111,28 @@ export function firstUnavailableDay(grid: OccupancyGrid, from: number, toExclusi
 }
 
 export function spanIsAvailable(grid: OccupancyGrid, span: DaySpan): boolean {
-  return firstUnavailableDay(grid, span.from, span.toExclusive) === null;
+  return spanHasRoom(grid, span, span.weight ?? 1);
+}
+
+/*
+  Un giorno con un solo posto libero non regge una richiesta da due cani:
+  serve confrontare la capienza residua con quanti posti servono davvero.
+*/
+export function spanHasRoom(grid: OccupancyGrid, span: DaySpan, needed: number): boolean {
+  return firstDayWithoutRoom(grid, span.from, span.toExclusive, needed) === null;
+}
+
+export function firstDayWithoutRoom(
+  grid: OccupancyGrid,
+  from: number,
+  toExclusive: number,
+  needed: number,
+): DayAvailability | null {
+  for (let day = from; day < toExclusive; day += 1) {
+    const status = inspectDay(grid, day);
+    if (!status.available || status.capacity - status.taken < needed) return status;
+  }
+  return null;
 }
 
 export function availabilityWindow(grid: OccupancyGrid): DayAvailability[] {

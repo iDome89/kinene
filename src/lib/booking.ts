@@ -1,4 +1,10 @@
-import { departureDayFor, occupancySpanFor, spanIsAvailable } from './availability';
+import {
+  departureDayFor,
+  occupancySpanFor,
+  spanHasRoom,
+  spanIsAvailable,
+  type DaySpan,
+} from './availability';
 import { parseDay, todayInBusinessTimezone } from './dates';
 import { quote } from './pricing';
 import {
@@ -8,12 +14,9 @@ import {
   type EmergencyContact,
   type Violation,
 } from './rules';
-import { services, type ServiceId } from '@/config/business';
+import { business, services, type ServiceId } from '@/config/business';
 
-export interface SubmissionFields {
-  readonly service: string;
-  readonly startDate: string;
-  readonly endDate: string;
+export interface DogFields {
   readonly dogName: string;
   readonly breed: string;
   readonly birthDate: string;
@@ -25,13 +28,6 @@ export interface SubmissionFields {
   readonly foodNotes: string;
   readonly allergies: string;
   readonly medications: string;
-  readonly firstName: string;
-  readonly lastName: string;
-  readonly email: string;
-  readonly phone: string;
-  readonly address: string;
-  readonly notes: string;
-  readonly emergencyContacts: readonly EmergencyContact[];
   readonly inHeatOrNear: boolean;
   readonly hasMicrochip: boolean;
   readonly hasHealthRecord: boolean;
@@ -41,6 +37,21 @@ export interface SubmissionFields {
   readonly isHealthy: boolean;
   readonly knowsBaseCommands: boolean;
   readonly hasAggressionHistory: boolean;
+}
+
+export interface SubmissionFields {
+  readonly service: string;
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly dogs: readonly DogFields[];
+  readonly sharedSpace: boolean;
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly email: string;
+  readonly phone: string;
+  readonly address: string;
+  readonly notes: string;
+  readonly emergencyContacts: readonly EmergencyContact[];
   readonly acceptedRules: boolean;
   readonly acceptedPrivacy: boolean;
 }
@@ -50,6 +61,7 @@ const PHONE = /^[+\d][\d\s./()-]{6,24}$/;
 const MICROCHIP = /^\d{15}$/;
 
 export const EMERGENCY_CONTACT_SLOTS = 3;
+export const DOG_SLOTS = business.capacity.maxDogsPerBooking;
 
 export function readSubmission(form: FormData): SubmissionFields {
   const text = (key: string) => String(form.get(key) ?? '').trim();
@@ -65,21 +77,40 @@ export function readSubmission(form: FormData): SubmissionFields {
     if (contact.firstName || contact.lastName || contact.phone) emergencyContacts.push(contact);
   }
 
+  /* Slot vuoti scartati come per i contatti: il primo cane resta comunque obbligatorio. */
+  const dogSlots: DogFields[] = [];
+  for (let slot = 0; slot < DOG_SLOTS; slot += 1) {
+    const dog: DogFields = {
+      dogName: text(`dogName${slot}`),
+      breed: text(`breed${slot}`),
+      birthDate: text(`birthDate${slot}`),
+      sex: text(`sex${slot}`),
+      microchip: text(`microchip${slot}`).replace(/\s/g, ''),
+      insurancePolicy: text(`insurancePolicy${slot}`),
+      vetName: text(`vetName${slot}`),
+      vetPhone: text(`vetPhone${slot}`),
+      foodNotes: text(`foodNotes${slot}`),
+      allergies: text(`allergies${slot}`),
+      medications: text(`medications${slot}`),
+      inHeatOrNear: flag(`inHeatOrNear${slot}`),
+      hasMicrochip: flag(`hasMicrochip${slot}`),
+      hasHealthRecord: flag(`hasHealthRecord${slot}`),
+      hasInsurance: flag(`hasInsurance${slot}`),
+      hasVaccinations: flag(`hasVaccinations${slot}`),
+      hasParasiteTreatment: flag(`hasParasiteTreatment${slot}`),
+      isHealthy: flag(`isHealthy${slot}`),
+      knowsBaseCommands: flag(`knowsBaseCommands${slot}`),
+      hasAggressionHistory: flag(`hasAggressionHistory${slot}`),
+    };
+    if (slot === 0 || dog.dogName || dog.microchip || dog.birthDate) dogSlots.push(dog);
+  }
+
   return {
     service: text('service'),
     startDate: text('startDate'),
     endDate: text('endDate'),
-    dogName: text('dogName'),
-    breed: text('breed'),
-    birthDate: text('birthDate'),
-    sex: text('sex'),
-    microchip: text('microchip').replace(/\s/g, ''),
-    insurancePolicy: text('insurancePolicy'),
-    vetName: text('vetName'),
-    vetPhone: text('vetPhone'),
-    foodNotes: text('foodNotes'),
-    allergies: text('allergies'),
-    medications: text('medications'),
+    dogs: dogSlots,
+    sharedSpace: flag('sharedSpace'),
     firstName: text('firstName'),
     lastName: text('lastName'),
     email: text('email').toLowerCase(),
@@ -87,28 +118,25 @@ export function readSubmission(form: FormData): SubmissionFields {
     address: text('address'),
     notes: text('notes'),
     emergencyContacts,
-    inHeatOrNear: flag('inHeatOrNear'),
-    hasMicrochip: flag('hasMicrochip'),
-    hasHealthRecord: flag('hasHealthRecord'),
-    hasInsurance: flag('hasInsurance'),
-    hasVaccinations: flag('hasVaccinations'),
-    hasParasiteTreatment: flag('hasParasiteTreatment'),
-    isHealthy: flag('isHealthy'),
-    knowsBaseCommands: flag('knowsBaseCommands'),
-    hasAggressionHistory: flag('hasAggressionHistory'),
     acceptedRules: flag('acceptedRules'),
     acceptedPrivacy: flag('acceptedPrivacy'),
   };
+}
+
+export interface PreparedDog {
+  readonly fields: DogFields;
+  readonly declaration: DogDeclaration;
+  readonly birthDay: number;
 }
 
 export interface PreparedBooking {
   readonly service: ServiceId;
   readonly startDay: number;
   readonly endDay: number;
-  readonly occupies: { from: number; toExclusive: number };
+  readonly occupies: DaySpan;
   readonly priceCents: number;
-  readonly dog: DogDeclaration;
-  readonly birthDay: number;
+  readonly dogs: readonly PreparedDog[];
+  readonly sharedSpace: boolean;
   readonly emergencyContacts: readonly EmergencyContact[];
 }
 
@@ -136,21 +164,35 @@ export function prepareBooking(fields: SubmissionFields, todayDay = todayInBusin
   }
 
   const parsedEnd = parseDay(fields.endDate);
-  const birthDay = parseDay(fields.birthDate);
 
-  if (!fields.dogName) {
-    violations.push({ code: 'invalid-range', field: 'dogName', message: 'Indica il nome del cane.' });
-  }
-  if (!MICROCHIP.test(fields.microchip)) {
+  fields.dogs.forEach((dog, dogIndex) => {
+    if (!dog.dogName) {
+      violations.push({ code: 'invalid-range', field: 'dogName', message: 'Indica il nome del cane.', dogIndex });
+    }
+    if (!MICROCHIP.test(dog.microchip)) {
+      violations.push({
+        code: 'missing-microchip',
+        field: 'microchip',
+        message: 'Il numero di microchip deve essere di 15 cifre.',
+        dogIndex,
+      });
+    }
+    if (dog.sex !== 'M' && dog.sex !== 'F') {
+      violations.push({ code: 'invalid-range', field: 'sex', message: 'Indica il sesso del cane.', dogIndex });
+    }
+  });
+
+  /* Lo stesso cane due volte occuperebbe due posti per un animale solo. */
+  const chips = fields.dogs.map((dog) => dog.microchip).filter((chip) => MICROCHIP.test(chip));
+  if (new Set(chips).size < chips.length) {
     violations.push({
-      code: 'missing-microchip',
+      code: 'invalid-range',
       field: 'microchip',
-      message: 'Il numero di microchip deve essere di 15 cifre.',
+      message: 'Hai indicato lo stesso microchip per due cani.',
+      dogIndex: 1,
     });
   }
-  if (fields.sex !== 'M' && fields.sex !== 'F') {
-    violations.push({ code: 'invalid-range', field: 'sex', message: 'Indica il sesso del cane.' });
-  }
+
   if (!fields.firstName || !fields.lastName) {
     violations.push({ code: 'invalid-range', field: 'firstName', message: 'Indica nome e cognome.' });
   }
@@ -163,19 +205,23 @@ export function prepareBooking(fields: SubmissionFields, todayDay = todayInBusin
 
   if (startDay === null) return { ok: false, violations };
 
-  const dog: DogDeclaration = {
-    birthDay,
-    sex: fields.sex === 'F' ? 'F' : 'M',
-    inHeatOrNear: fields.inHeatOrNear,
-    hasMicrochip: fields.hasMicrochip,
-    hasHealthRecord: fields.hasHealthRecord,
-    hasInsurance: fields.hasInsurance,
-    hasVaccinations: fields.hasVaccinations,
-    hasParasiteTreatment: fields.hasParasiteTreatment,
-    isHealthy: fields.isHealthy,
-    knowsBaseCommands: fields.knowsBaseCommands,
-    hasAggressionHistory: fields.hasAggressionHistory,
-  };
+  const prepared: PreparedDog[] = fields.dogs.map((dog) => ({
+    fields: dog,
+    birthDay: parseDay(dog.birthDate) ?? 0,
+    declaration: {
+      birthDay: parseDay(dog.birthDate),
+      sex: dog.sex === 'F' ? 'F' : 'M',
+      inHeatOrNear: dog.inHeatOrNear,
+      hasMicrochip: dog.hasMicrochip,
+      hasHealthRecord: dog.hasHealthRecord,
+      hasInsurance: dog.hasInsurance,
+      hasVaccinations: dog.hasVaccinations,
+      hasParasiteTreatment: dog.hasParasiteTreatment,
+      isHealthy: dog.isHealthy,
+      knowsBaseCommands: dog.knowsBaseCommands,
+      hasAggressionHistory: dog.hasAggressionHistory,
+    },
+  }));
 
   const endDay = departureDayFor(fields.service, startDay, parsedEnd ?? startDay);
 
@@ -185,7 +231,7 @@ export function prepareBooking(fields: SubmissionFields, todayDay = todayInBusin
         service: fields.service,
         startDay,
         endDay,
-        dog,
+        dogs: prepared.map((dog) => dog.declaration),
         emergencyContacts: fields.emergencyContacts,
         acceptedRules: fields.acceptedRules,
         acceptedPrivacy: fields.acceptedPrivacy,
@@ -202,10 +248,13 @@ export function prepareBooking(fields: SubmissionFields, todayDay = todayInBusin
       service: fields.service,
       startDay,
       endDay,
-      occupies: occupancySpanFor(fields.service, startDay, endDay),
-      priceCents: quote(fields.service, startDay, endDay).totalCents,
-      dog,
-      birthDay: birthDay!,
+      occupies: {
+        ...occupancySpanFor(fields.service, startDay, endDay),
+        weight: prepared.length,
+      },
+      priceCents: quote(fields.service, startDay, endDay, prepared.length, fields.sharedSpace).totalCents,
+      dogs: prepared,
+      sharedSpace: prepared.length > 1 && fields.sharedSpace,
       emergencyContacts: completeContacts(fields.emergencyContacts),
     },
   };
@@ -221,4 +270,4 @@ export function bookingReference(seed: Uint8Array): string {
   return out;
 }
 
-export { spanIsAvailable };
+export { spanHasRoom, spanIsAvailable };

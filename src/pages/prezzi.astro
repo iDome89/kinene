@@ -7,7 +7,7 @@ import SectionHeading from '@/components/SectionHeading.astro';
 import Button from '@/components/Button.astro';
 import Icon from '@/components/Icon.astro';
 import Callout from '@/components/Callout.astro';
-import { maxDurationLabel, policy, serviceList } from '@/config/business';
+import { business, maxDurationLabel, policy, serviceList } from '@/config/business';
 import { formatEuro } from '@/lib/pricing';
 
 const description =
@@ -19,6 +19,8 @@ const breadcrumb = [
 ];
 
 const latePercent = policy.lateCancellationFeeRatio * 100;
+
+const secondDogDiscount = `${Math.round((1 - business.capacity.additionalDogSharedRatio) * 100)}% in meno`;
 ---
 
 <Base title="Prezzi e condizioni" description={description} breadcrumb={breadcrumb}>
@@ -113,6 +115,18 @@ const latePercent = policy.lateCancellationFeeRatio * 100;
               </p>
             </div>
           </li>
+          <li class="flex items-start gap-3">
+            <Icon name="paw" size={19} class="mt-0.5 shrink-0 text-primary" />
+            <div>
+              <p class="m-0 font-medium">Più di un cane</p>
+              <p class="m-0 mt-1 text-sm leading-relaxed text-muted">
+                Puoi portare fino a {business.capacity.maxDogsPerBooking} cani in una sola richiesta. Se stanno
+                insieme nello stesso spazio, dal secondo paghi il {secondDogDiscount}; in spazi separati ogni
+                cane paga intero. In entrambi i casi occupano un posto a testa.
+              </p>
+            </div>
+          </li>
+
           <li class="flex items-start gap-3">
             <Icon name="shield" size={19} class="mt-0.5 shrink-0 text-primary" />
             <div>
